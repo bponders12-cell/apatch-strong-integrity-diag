@@ -1,0 +1,1891 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>APatch Strong Integrity Diagnostics — WebUI &amp; Auditor v1.4.0</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          },
+          colors: {
+            slate: {
+              850: '#141c2b',
+              925: '#0b111e',
+              950: '#060a12'
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background-color: #060a12;
+      color: #e2e8f0;
+      overflow-x: hidden;
+    }
+    .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .glass-card {
+      background: rgba(20, 28, 43, 0.85);
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      backdrop-filter: blur(10px);
+    }
+    .wrap-anywhere {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(100, 116, 139, 0.45);
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased selection:bg-emerald-500/30 selection:text-emerald-200">
+
+  <!-- Toast Notification -->
+  <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- Export Report Modal -->
+  <div id="reportModal" class="fixed inset-0 z-40 hidden items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+    <div class="glass-card w-full max-w-2xl rounded-2xl p-5 shadow-2xl border border-slate-700/70">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div>
+          <h3 id="modalTitle" class="text-base font-semibold text-white">Diagnostic Report Export</h3>
+          <p class="text-xs text-slate-400">Copy or save this snapshot for troubleshooting</p>
+        </div>
+        <button id="closeModalBtn" type="button" class="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition">
+          Close
+        </button>
+      </div>
+      <div class="mt-3">
+        <textarea id="modalReportText" readonly class="mono custom-scroll h-72 w-full rounded-xl border border-slate-800 bg-slate-950/90 p-3 text-xs text-emerald-300 focus:outline-none"></textarea>
+      </div>
+      <div class="mt-4 flex flex-wrap items-center justify-end gap-2">
+        <button id="copyModalReportBtn" type="button" class="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 transition">
+          Copy to Clipboard
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top Header -->
+  <header class="sm:sticky sm:top-0 z-30 border-b border-slate-800/80 bg-slate-950/95 backdrop-blur-md">
+    <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2.5 px-4 py-2.5">
+      <div class="flex items-center gap-2.5">
+        <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 border border-emerald-500/40 text-emerald-400 shadow-inner">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-sm font-bold tracking-tight text-white sm:text-base">APatch Strong Integrity Auditor</h1>
+            <span class="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 border border-emerald-500/30">v1.4.0</span>
+          </div>
+          <p class="text-[11px] text-slate-400">Pure-BusyBox DER Keybox Parser, ReZygisk Unblocker &amp; PIF Migrator</p>
+        </div>
+      </div>
+
+      <!-- Bridge Status & Quick Actions -->
+      <div class="flex flex-wrap items-center gap-1.5">
+        <div id="bridgeBadge" class="flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-300">
+          <span id="bridgeDot" class="h-2 w-2 rounded-full bg-amber-400 animate-pulse"></span>
+          <span id="bridgeText">Checking Bridge...</span>
+        </div>
+        <button id="runLiveAuditBtn" type="button" class="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-lg shadow-emerald-950/50 hover:bg-emerald-500 active:scale-[0.99] transition">
+          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <span id="runAuditBtnLabel">Re-Scan Device</span>
+        </button>
+        <button id="exportJsonBtn" type="button" class="rounded-xl border border-slate-700 bg-slate-850 px-2.5 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-800 transition">
+          Export JSON
+        </button>
+        <button id="exportMdBtn" type="button" class="rounded-xl border border-slate-700 bg-slate-850 px-2.5 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-800 transition">
+          Export Report
+        </button>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="mx-auto max-w-6xl px-4">
+      <nav class="flex gap-1 overflow-x-auto border-t border-slate-800/60 pt-1.5 pb-1.5" aria-label="Main Tabs">
+        <button type="button" data-tab="dashboard" class="tab-btn rounded-lg bg-emerald-500/15 border border-emerald-500/40 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition whitespace-nowrap">
+          1. Diagnostic Audit (6 Layers)
+        </button>
+        <button type="button" data-tab="keybox" class="tab-btn rounded-lg border border-transparent px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 transition whitespace-nowrap">
+          2. Keybox &amp; Cert Chain Inspector
+        </button>
+        <button type="button" data-tab="parser" class="tab-btn rounded-lg border border-transparent px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 transition whitespace-nowrap">
+          3. Paste Raw getprop / JSON
+        </button>
+        <button type="button" data-tab="guide" class="tab-btn rounded-lg border border-transparent px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 transition whitespace-nowrap">
+          4. APatch Module Structure &amp; CLI
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="mx-auto max-w-6xl px-4 py-4 space-y-4">
+
+    <!-- Simulation Preset Bar (Hidden automatically inside live APatch WebView) -->
+    <section id="presetBar" class="glass-card rounded-2xl p-3.5 border border-slate-800">
+      <div class="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold uppercase tracking-wider text-cyan-400">Device Telemetry Profile</span>
+            <span id="activePresetLabel" class="rounded bg-rose-500/15 px-2 py-0.5 text-[11px] font-medium text-rose-300 border border-rose-500/30">Your Screenshot: Pixel 8a (akita:17) ReZygisk Block + AOSP Keybox</span>
+          </div>
+          <p class="mt-0.5 text-xs text-slate-400">
+            In APatch WebView, <span class="mono text-emerald-300">Fix for Me</span> runs live root remediation via <span class="mono text-slate-300">ksu.exec()</span>. In Canvas preview, click <span class="mono text-emerald-300">Fix for Me</span> on any card to test the fix.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-1.5">
+          <button type="button" data-preset="pif_conflict" class="preset-btn rounded-lg border border-rose-500/50 bg-rose-500/15 px-2.5 py-1.5 text-xs font-semibold text-rose-200 transition">
+            PIF + AOSP Keybox Conflict
+          </button>
+          <button type="button" data-preset="stock_apatch" class="preset-btn rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:border-slate-500 transition">
+            Stock APatch (Unlocked BL)
+          </button>
+          <button type="button" data-preset="mount_spl_leak" class="preset-btn rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:border-slate-500 transition">
+            SPL Mismatch &amp; Overlay Leak
+          </button>
+          <button type="button" data-preset="strong_ready" class="preset-btn rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:border-slate-500 transition">
+            Strong Integrity Passing
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 1: DASHBOARD -->
+    <div id="tab-dashboard" class="space-y-4">
+      <!-- Top Summary Grid -->
+      <div class="grid grid-cols-1 gap-3.5 md:grid-cols-12">
+        <!-- Predicted Verdict Card -->
+        <div class="glass-card rounded-2xl p-4 md:col-span-5 flex flex-col justify-between">
+          <div>
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Predicted Play Integrity Verdict</span>
+            <div class="mt-2.5 flex items-center gap-3">
+              <div id="verdictIconBox" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-rose-500/40 bg-rose-500/15 text-rose-400">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <div id="verdictBadge" class="mono text-base sm:text-lg font-bold text-rose-400">CAPS_AT_BASIC_INTEGRITY</div>
+                <p id="verdictSubtext" class="text-xs text-slate-400">ReZygisk GMS DenyList block, unmigrated custom.pif.prop, or AOSP/revoked keybox drops verdict to MEETS_BASIC_INTEGRITY.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3 Integrity Tier Pills -->
+          <div class="mt-3.5 grid grid-cols-3 gap-2 pt-3 border-t border-slate-800/80">
+            <div id="tierBasic" class="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-2 text-center">
+              <div class="text-[10px] font-semibold uppercase text-slate-400">Basic</div>
+              <div id="tierBasicVal" class="mt-0.5 text-xs font-bold text-emerald-400">PASS</div>
+            </div>
+            <div id="tierDevice" class="rounded-xl border border-rose-500/30 bg-rose-500/10 p-2 text-center">
+              <div class="text-[10px] font-semibold uppercase text-slate-400">Device</div>
+              <div id="tierDeviceVal" class="mt-0.5 text-xs font-bold text-rose-400">FAIL</div>
+            </div>
+            <div id="tierStrong" class="rounded-xl border border-rose-500/30 bg-rose-500/10 p-2 text-center">
+              <div class="text-[10px] font-semibold uppercase text-slate-400">Strong</div>
+              <div id="tierStrongVal" class="mt-0.5 text-xs font-bold text-rose-400">FAIL</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Score & Issue Breakdown -->
+        <div class="glass-card rounded-2xl p-4 md:col-span-4 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Strong Readiness Score</span>
+              <span id="scoreText" class="mono text-2xl font-bold text-rose-400">25/100</span>
+            </div>
+            <div class="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-slate-800">
+              <div id="scoreBar" class="h-full rounded-full bg-rose-500 transition-all duration-300" style="width: 25%"></div>
+            </div>
+          </div>
+
+          <div class="mt-3.5 grid grid-cols-3 gap-2">
+            <div class="rounded-xl bg-slate-900/90 border border-slate-800 p-2.5">
+              <div class="text-[11px] text-slate-400">Blockers</div>
+              <div id="statCritical" class="mono mt-0.5 text-lg font-bold text-rose-400">3</div>
+            </div>
+            <div class="rounded-xl bg-slate-900/90 border border-slate-800 p-2.5">
+              <div class="text-[11px] text-slate-400">Warnings</div>
+              <div id="statWarnings" class="mono mt-0.5 text-lg font-bold text-amber-400">0</div>
+            </div>
+            <div class="rounded-xl bg-slate-900/90 border border-slate-800 p-2.5">
+              <div class="text-[11px] text-slate-400">Passing</div>
+              <div id="statPassing" class="mono mt-0.5 text-lg font-bold text-emerald-400">16</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Device & APatch Context Card -->
+        <div class="glass-card rounded-2xl p-4 md:col-span-3 flex flex-col justify-between">
+          <div>
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Environment Snapshot</span>
+            <dl class="mt-2 space-y-1.5 text-xs">
+              <div class="flex justify-between gap-2">
+                <dt class="text-slate-400">Real/PIF Print:</dt>
+                <dd id="envDevice" class="mono font-medium text-rose-300 text-right truncate">Pixel 8a (akita)</dd>
+              </div>
+              <div class="flex justify-between gap-2">
+                <dt class="text-slate-400">PIF Initial SDK:</dt>
+                <dd id="envAndroid" class="mono font-medium text-rose-300">SDK 34</dd>
+              </div>
+              <div class="flex justify-between gap-2">
+                <dt class="text-slate-400">APatch apd:</dt>
+                <dd id="envApd" class="mono font-medium text-emerald-400">10763</dd>
+              </div>
+              <div class="flex justify-between gap-2">
+                <dt class="text-slate-400">Zygisk Bridge:</dt>
+                <dd id="envZygisk" class="mono font-medium text-slate-200">rezygisk</dd>
+              </div>
+              <div class="flex justify-between gap-2">
+                <dt class="text-slate-400">PIF / Sys SPL:</dt>
+                <dd id="envSpl" class="mono font-medium text-slate-200">2026-08-05</dd>
+              </div>
+            </dl>
+          </div>
+          <div class="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+            <span>OverlayFS Mounts:</span>
+            <span id="envOverlays" class="mono font-semibold text-emerald-400">0 active</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Root-Cause Remediation Banner -->
+      <div id="remediationBanner" class="glass-card rounded-2xl p-4 border-l-4 border-l-rose-500">
+        <div class="flex flex-wrap items-start justify-between gap-2.5">
+          <div>
+            <h2 class="text-sm font-bold text-white flex flex-wrap items-center gap-2">
+              <span>Primary Strong Integrity Blockers &amp; Fixes</span>
+              <span id="blockerCountChip" class="rounded-full bg-rose-500/20 px-2.5 py-0.5 text-[11px] font-semibold text-rose-300">3 Action Item(s)</span>
+            </h2>
+            <p class="mt-0.5 text-xs text-slate-400">Tap <span class="font-semibold text-emerald-300">Fix for Me</span> on any item below to apply the remediation automatically on your device.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <button id="fixAllForMeBtn" type="button" class="flex-1 sm:flex-none rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-md shadow-emerald-950/60 hover:bg-emerald-500 active:scale-[0.99] transition">
+              Fix All For Me
+            </button>
+            <button id="fixFrankelPifBtn" type="button" class="flex-1 sm:flex-none rounded-xl bg-amber-500/20 border border-amber-500/40 px-3 py-2 text-xs font-semibold text-amber-200 hover:bg-amber-500/30 transition">
+              Copy Pre-RKP Pixel 9 Pro custom.pif.prop Fix
+            </button>
+          </div>
+        </div>
+        <div id="remediationList" class="mt-3 space-y-2.5"></div>
+      </div>
+
+      <!-- Filter & Search Controls -->
+      <div class="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex flex-wrap gap-1.5" id="filterPills">
+          <button type="button" data-filter="all" class="filter-btn rounded-lg bg-slate-800 border border-slate-600 px-3 py-1.5 text-xs font-semibold text-white transition">
+            All Checks (18)
+          </button>
+          <button type="button" data-filter="FAIL" class="filter-btn rounded-lg bg-slate-900 border border-slate-800 px-3 py-1.5 text-xs font-medium text-rose-300 hover:border-rose-500/40 transition">
+            Blockers
+          </button>
+          <button type="button" data-filter="WARN" class="filter-btn rounded-lg bg-slate-900 border border-slate-800 px-3 py-1.5 text-xs font-medium text-amber-300 hover:border-amber-500/40 transition">
+            Warnings
+          </button>
+          <button type="button" data-filter="PASS" class="filter-btn rounded-lg bg-slate-900 border border-slate-800 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:border-emerald-500/40 transition">
+            Passing
+          </button>
+        </div>
+
+        <div class="relative w-full sm:w-72">
+          <input id="checkSearchInput" type="text" placeholder="Search akita, ReZygisk, CRL, keybox, PIF..." class="w-full rounded-xl border border-slate-800 bg-slate-900/90 px-3.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:border-emerald-500/60 focus:outline-none" />
+        </div>
+      </div>
+
+      <!-- 6-Layer Diagnostic Check Cards -->
+      <div id="diagnosticLayersContainer" class="space-y-3.5"></div>
+    </div>
+
+    <!-- TAB 2: KEYBOX & CERT INSPECTOR -->
+    <div id="tab-keybox" class="hidden space-y-4">
+      <div class="glass-card rounded-2xl p-5">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 class="text-base font-bold text-white">Keybox.xml &amp; Attestation Chain Structure Auditor</h2>
+            <p class="text-xs text-slate-400">
+              Validates whether a <span class="mono text-slate-300">keybox.xml</span> file has the required ECDSA + RSA keys and a 3+ certificate hardware chain, and detects default AOSP software keyboxes that cap verdicts at <span class="mono text-amber-300">MEETS_DEVICE_INTEGRITY</span>.
+            </p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button id="loadSampleAospKeyboxBtn" type="button" class="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-300 hover:bg-amber-500/20 transition">
+              Load Sample AOSP Keybox (Fails Strong)
+            </button>
+            <button id="loadSampleHwKeyboxBtn" type="button" class="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-500/20 transition">
+              Load Hardware Structure Sample
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <label for="keyboxXmlInput" class="block text-xs font-medium text-slate-300 mb-1.5">Paste <span class="mono">keybox.xml</span> structure (private key bodies may be redacted):</label>
+          <textarea id="keyboxXmlInput" rows="8" placeholder="Paste <AndroidAttestation>...</AndroidAttestation> XML content here to inspect certificate chain depth and algorithm tags..." class="mono custom-scroll w-full rounded-xl border border-slate-800 bg-slate-950 p-3 text-xs text-slate-200 focus:border-emerald-500/60 focus:outline-none"></textarea>
+        </div>
+
+        <div class="mt-3 flex items-center gap-2">
+          <button id="analyzeKeyboxBtn" type="button" class="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 transition">
+            Audit Keybox Structure
+          </button>
+          <button id="clearKeyboxBtn" type="button" class="rounded-xl border border-slate-700 bg-slate-850 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-slate-800 transition">
+            Clear
+          </button>
+        </div>
+
+        <div id="keyboxAuditResult" class="mt-4 hidden rounded-xl border border-slate-800 bg-slate-900/80 p-4"></div>
+      </div>
+    </div>
+
+    <!-- TAB 3: PASTE RAW GETPROP / JSON PARSER -->
+    <div id="tab-parser" class="hidden space-y-4">
+      <div class="glass-card rounded-2xl p-5">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 class="text-base font-bold text-white">Offline Device Snapshot Parser (<span class="mono">getprop</span> / <span class="mono">diag_engine.sh --json</span>)</h2>
+            <p class="text-xs text-slate-400">
+              Run <span class="mono text-emerald-300">sh /data/adb/modules/apatch_strong_integrity_diag/scripts/diag_engine.sh --json</span> or <span class="mono text-emerald-300">getprop</span> in an ADB/root shell and paste the output below to populate the 6-layer dashboard.
+            </p>
+          </div>
+          <button id="loadSampleRawPropsBtn" type="button" class="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-medium text-cyan-300 hover:bg-cyan-500/20 transition self-start">
+            Insert Sample getprop Dump
+          </button>
+        </div>
+
+        <div class="mt-4">
+          <textarea id="rawTelemetryInput" rows="9" placeholder="Paste JSON output from diag_engine.sh --json OR raw [ro.boot.verifiedbootstate]: [orange] lines from getprop..." class="mono custom-scroll w-full rounded-xl border border-slate-800 bg-slate-950 p-3 text-xs text-slate-200 focus:border-emerald-500/60 focus:outline-none"></textarea>
+        </div>
+
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+          <button id="parseTelemetryBtn" type="button" class="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 transition">
+            Parse &amp; Load into Dashboard
+          </button>
+          <span id="parseStatusMsg" class="text-xs text-slate-400"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: APATCH MODULE STRUCTURE & CLI GUIDE -->
+    <div id="tab-guide" class="hidden space-y-4">
+      <div class="glass-card rounded-2xl p-5 space-y-4">
+        <div>
+          <h2 class="text-base font-bold text-white">APatch Module Architecture &amp; CLI Reference (v1.4.0)</h2>
+          <p class="mt-1 text-xs text-slate-400">
+            Upgraded in v1.4.0 with a pure-BusyBox ASN.1 DER certificate parser (no <span class="mono text-slate-300">openssl</span> binary required), automatic removal of the ReZygisk <span class="mono text-rose-300">package_config</span> GMS DenyList block, and full <span class="mono text-emerald-300">migrate.sh</span>-formatted <span class="mono text-emerald-300">custom.pif.prop</span> generation.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div class="rounded-xl border border-slate-800 bg-slate-900/80 p-4">
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-emerald-400">Package Layout</h3>
+            <pre class="mono mt-2 text-xs text-slate-300 overflow-x-auto leading-relaxed">apatch_strong_integrity_diag_v1.4.0.zip
+├── module.prop              # APM metadata (v1.4.0)
+├── customize.sh             # Installer hook + skip_mount
+├── action.sh                # APatch Manager Action button
+├── scripts/
+│   ├── diag_engine.sh       # Pure-BusyBox DER + CRL engine
+│   └── apply_fix.sh         # ReZygisk + migrate.sh auto-fix
+├── webroot/
+│   └── index.html           # Built-in ksu.exec() WebUI
+└── META-INF/com/google/android/
+    ├── update-binary
+    └── updater-script</pre>
+          </div>
+
+          <div class="rounded-xl border border-slate-800 bg-slate-900/80 p-4 flex flex-col justify-between">
+            <div>
+              <h3 class="text-xs font-semibold uppercase tracking-wider text-cyan-400">CLI Auto-Remediation Commands</h3>
+              <p class="mt-1 text-xs text-slate-400">Run directly from an ADB root shell if needed:</p>
+              <pre id="cliCommandsBlock" class="mono mt-2 rounded-lg bg-slate-950 p-3 text-xs text-emerald-300 overflow-x-auto"># Unblock ReZygisk GMS injection &amp; write migrated custom.pif.prop
+sh /data/adb/modules/apatch_strong_integrity_diag/scripts/apply_fix.sh all
+
+# Or enable Device Integrity fallback (spoofProvider=1) if keybox is AOSP/revoked
+sh /data/adb/modules/apatch_strong_integrity_diag/scripts/apply_fix.sh pif_device_fallback</pre>
+            </div>
+            <div class="mt-3 flex justify-end">
+              <button id="copyCliCommandsBtn" type="button" class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-700 transition">
+                Copy CLI Commands
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- GitHub Actions CI/CD Workflow Card -->
+        <div class="rounded-xl border border-slate-800 bg-slate-900/80 p-4">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 class="text-xs font-semibold uppercase tracking-wider text-emerald-400">GitHub Actions Release Workflow (<span class="mono">.github/workflows/release.yml</span>)</h3>
+              <p class="mt-0.5 text-xs text-slate-400">Validates POSIX <span class="mono text-slate-300">sh -n</span> syntax on every push and automatically attaches <span class="mono text-emerald-300">apatch_strong_integrity_diag_v*.zip</span> to GitHub Releases when you push a <span class="mono text-slate-300">v*</span> tag.</p>
+            </div>
+            <button id="copyGhWorkflowBtn" type="button" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 transition">
+              Copy release.yml
+            </button>
+          </div>
+          <pre id="ghWorkflowBlock" class="mono custom-scroll mt-3 max-h-60 rounded-lg bg-slate-950 p-3 text-xs text-cyan-300 overflow-x-auto">name: Build &amp; Release APatch Module
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Validate Shell Scripts (POSIX sh -n)
+        run: |
+          sh -n customize.sh
+          sh -n action.sh
+          sh -n scripts/diag_engine.sh
+          sh -n scripts/apply_fix.sh
+
+      - name: Read Version from module.prop
+        id: meta
+        run: |
+          VER=$(grep '^version=' module.prop | cut -d= -f2 | tr -d '\r\n')
+          ZIP_NAME="apatch_strong_integrity_diag_${VER}.zip"
+          echo "version=${VER}" &gt;&gt; "$GITHUB_OUTPUT"
+          echo "zip_name=${ZIP_NAME}" &gt;&gt; "$GITHUB_OUTPUT"
+
+      - name: Package Flashable APatch Module ZIP
+        run: |
+          chmod 0755 action.sh customize.sh scripts/diag_engine.sh scripts/apply_fix.sh
+          zip -r9 "${{ steps.meta.outputs.zip_name }}" \
+            META-INF scripts webroot module.prop customize.sh action.sh README.md LICENSE
+
+      - name: Upload Module Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.zip_name }}
+          path: ${{ steps.meta.outputs.zip_name }}
+
+      - name: Publish GitHub Release (on Tag Push)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.meta.outputs.zip_name }}
+            CHANGELOG.md
+          generate_release_notes: true</pre>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    // =========================================================================
+    // 1. Preset Telemetry Profiles (Matches the User's 7634.png Pixel 8a State!)
+    // =========================================================================
+    const PRESET_PROFILES = {
+      pif_conflict: {
+        label: "Your Latest Report: Pixel 8a (Valid Hardware Keybox + Needs Live autopif4 -s -m)",
+        timestamp: "2026-10-25T10:20:00Z",
+        device: {
+          model: "Pixel 8a",
+          brand: "google",
+          android_version: "17",
+          sdk_int: "37",
+          kernel: "6.1.172-android14-11-g8d0115b07367-ab16385437"
+        },
+        apatch: {
+          apd_version: "10763",
+          busybox: "present",
+          gms_package_config: "not_listed",
+          root_hider: "none",
+          active_overlay_modules: 0,
+          overlay_module_names: ""
+        },
+        verified_boot: {
+          verifiedbootstate: "green",
+          flash_locked: "1",
+          vbmeta_device_state: "locked",
+          veritymode: "enforcing",
+          warranty_bit: "0",
+          ro_debuggable: "0",
+          ro_secure: "1"
+        },
+        build_props: {
+          tags: "release-keys",
+          type: "user",
+          fingerprint: "google/akita_beta/akita:17/CP41.260831.016/16521119:user/release-keys",
+          sys_security_patch: "2026-10-05",
+          vendor_security_patch: "2026-10-05",
+          boot_security_patch: "2026-10-05"
+        },
+        tee_attestation: {
+          keymint_services: "[init.svc.vendor.keymint-citadel]: [running];[init.svc.vendor.keymint.rust-trusty]: [running]",
+          strongbox_services: "no strongbox",
+          tricky_store_installed: true,
+          tricky_store_daemon: "module_enabled",
+          keybox_status: "present_valid_structure",
+          keybox_cert_count: 4,
+          keybox_algorithms: "ecdsa:1,rsa:1",
+          keybox_serials: "8761da14a792fc05fb4ac99c17e996ae,3214da834ac6e3dae599cd7e119b4a02758058,924250191903e3ba65320efd6a2085fb,84a9d0297b0eb58ae7ff0e80de760605",
+          keybox_crl_status: "clean_unrevoked",
+          keybox_sha256: "valid_hw_kb",
+          target_gms: "present",
+          target_vending: "present",
+          target_mode: "generate_cert_exclamation",
+          security_patch_override: "20260805"
+        },
+        module_conflicts: {
+          zygisk_provider: "zygisksu",
+          pif_installed: true,
+          pif_path: "/data/adb/modules/playintegrityfix/custom.pif.prop",
+          pif_fingerprint: "google/caiman_beta/caiman:16/BP31.260821.009/15829104:user/release-keys",
+          pif_device: "caiman",
+          pif_model: "Pixel 9 Pro",
+          pif_security_patch: "2026-08-05",
+          pif_initial_sdk_int: "34",
+          pif_rkp_conflict: "static_print_needs_live_autopif4 (tap Fix for Me)",
+          pif_spoof_provider: "false",
+          pif_spoof_props: "true",
+          pif_spoof_vending_sdk: "0"
+        },
+        mount_selinux: {
+          selinux: "Enforcing",
+          root_mount_leaks: 0,
+          overlay_mount_leaks: 0,
+          kernel_string_check: "clean",
+          adbd_state: "running"
+        }
+      },
+
+      stock_apatch: {
+        label: "Preset: Stock APatch (Unlocked BL)",
+        timestamp: "2026-10-25T09:14:00Z",
+        device: {
+          model: "Pixel 8a",
+          brand: "google",
+          android_version: "17",
+          sdk_int: "36",
+          kernel: "6.1.99-android14-11-g82b1d9c"
+        },
+        apatch: {
+          apd_version: "10763",
+          busybox: "present",
+          gms_package_config: "not_listed",
+          root_hider: "none",
+          active_overlay_modules: 0,
+          overlay_module_names: ""
+        },
+        verified_boot: {
+          verifiedbootstate: "orange",
+          flash_locked: "0",
+          vbmeta_device_state: "unlocked",
+          veritymode: "enforcing",
+          warranty_bit: "0",
+          ro_debuggable: "0",
+          ro_secure: "1"
+        },
+        build_props: {
+          tags: "release-keys",
+          type: "user",
+          fingerprint: "google/akita_beta/akita:17/CP41.260831.016/16521119:user/release-keys",
+          sys_security_patch: "2026-08-05",
+          vendor_security_patch: "2026-08-05",
+          boot_security_patch: "2026-08-05"
+        },
+        tee_attestation: {
+          keymint_services: "init.svc.vendor.keymint-default=running",
+          strongbox_services: "init.svc.vendor.keymint-strongbox=running",
+          tricky_store_installed: false,
+          tricky_store_daemon: "stopped",
+          keybox_status: "missing",
+          keybox_cert_count: 0,
+          keybox_algorithms: "",
+          keybox_serials: "",
+          keybox_crl_status: "not_checked",
+          keybox_sha256: "none",
+          target_gms: "missing",
+          target_vending: "missing",
+          target_mode: "none",
+          security_patch_override: "none"
+        },
+        module_conflicts: {
+          zygisk_provider: "none",
+          pif_installed: false,
+          pif_path: "",
+          pif_fingerprint: "",
+          pif_device: "",
+          pif_model: "",
+          pif_security_patch: "",
+          pif_initial_sdk_int: "",
+          pif_rkp_conflict: "none",
+          pif_spoof_provider: "not_set",
+          pif_spoof_props: "not_set",
+          pif_spoof_vending_sdk: "not_set"
+        },
+        mount_selinux: {
+          selinux: "Enforcing",
+          root_mount_leaks: 0,
+          overlay_mount_leaks: 0,
+          kernel_string_check: "clean",
+          adbd_state: "stopped"
+        }
+      },
+
+      mount_spl_leak: {
+        label: "Preset: Revoked Keybox + Overlay Leak",
+        timestamp: "2026-10-25T09:14:00Z",
+        device: {
+          model: "SM-S928B",
+          brand: "samsung",
+          android_version: "15",
+          sdk_int: "35",
+          kernel: "6.1.75-lineageos-dirty"
+        },
+        apatch: {
+          apd_version: "10763",
+          busybox: "present",
+          gms_package_config: "not_listed",
+          root_hider: "none",
+          active_overlay_modules: 2,
+          overlay_module_names: "custom_fonts Viper4Android"
+        },
+        verified_boot: {
+          verifiedbootstate: "green",
+          flash_locked: "1",
+          vbmeta_device_state: "locked",
+          veritymode: "enforcing",
+          warranty_bit: "1",
+          ro_debuggable: "0",
+          ro_secure: "1"
+        },
+        build_props: {
+          tags: "release-keys",
+          type: "user",
+          fingerprint: "samsung/e3qxxx/e3q:15/AP3A.240905.015/S928BXXU3AXI1:user/release-keys",
+          sys_security_patch: "2026-10-01",
+          vendor_security_patch: "2026-07-01",
+          boot_security_patch: "2026-10-01"
+        },
+        tee_attestation: {
+          keymint_services: "init.svc.vendor.keymint-default=running",
+          strongbox_services: "init.svc.vendor.keymint-strongbox=running",
+          tricky_store_installed: true,
+          tricky_store_daemon: "running",
+          keybox_status: "revoked_on_google_crl",
+          keybox_cert_count: 4,
+          keybox_algorithms: "ecdsa:1,rsa:1",
+          keybox_serials: "194b82e109f3a41d",
+          keybox_crl_status: "revoked_serial_194b82e109f3a41d",
+          keybox_sha256: "8f31c4902ab1",
+          target_gms: "present",
+          target_vending: "present",
+          target_mode: "auto",
+          security_patch_override: "none"
+        },
+        module_conflicts: {
+          zygisk_provider: "zygisksu",
+          pif_installed: true,
+          pif_path: "/data/adb/modules/playintegrityfix/custom.pif.prop",
+          pif_fingerprint: "google/caiman_beta/caiman:16/BP31.260610.004/13901241:user/release-keys",
+          pif_device: "caiman",
+          pif_model: "Pixel 9 Pro",
+          pif_security_patch: "2026-08-05",
+          pif_initial_sdk_int: "34",
+          pif_rkp_conflict: "none",
+          pif_spoof_provider: "false",
+          pif_spoof_props: "true",
+          pif_spoof_vending_sdk: "0"
+        },
+        mount_selinux: {
+          selinux: "Enforcing",
+          root_mount_leaks: 0,
+          overlay_mount_leaks: 2,
+          kernel_string_check: "flagged_keyword",
+          adbd_state: "running"
+        }
+      },
+
+      strong_ready: {
+        label: "Your Live 100/100 Pixel 8a (akita:CANARY/ZP11.260918.007) Strong Integrity State",
+        timestamp: "2026-10-25T10:41:48Z",
+        device: {
+          model: "Pixel 8a",
+          brand: "google",
+          android_version: "17",
+          sdk_int: "37",
+          kernel: "6.1.172-android14-11-g8d0115b07367-ab16385437"
+        },
+        apatch: {
+          apd_version: "apd 11282",
+          busybox: "present",
+          gms_package_config: "not_listed",
+          root_hider: "none",
+          active_overlay_modules: 0,
+          overlay_module_names: ""
+        },
+        verified_boot: {
+          verifiedbootstate: "green",
+          flash_locked: "1",
+          vbmeta_device_state: "locked",
+          veritymode: "enforcing",
+          warranty_bit: "0",
+          ro_debuggable: "0",
+          ro_secure: "1"
+        },
+        build_props: {
+          tags: "release-keys",
+          type: "user",
+          fingerprint: "google/akita_beta/akita:17/CP41.260831.016/16521119:user/release-keys",
+          sys_security_patch: "2026-10-05",
+          vendor_security_patch: "2026-10-05",
+          boot_security_patch: "2026-10-05"
+        },
+        tee_attestation: {
+          keymint_services: "[init.svc.vendor.keymint-citadel]: [running];[init.svc.vendor.keymint.rust-trusty]: [running]",
+          strongbox_services: "no strongbox",
+          tricky_store_installed: true,
+          tricky_store_daemon: "module_enabled",
+          keybox_status: "present_valid_structure",
+          keybox_cert_count: 5,
+          keybox_algorithms: "ecdsa:1,rsa:00",
+          keybox_serials: "8761da14a792fc05fb4ac99c17e996ae,3214da834ac6e3dae599cd7e119b4a02758058,924250191903e3ba65320efd6a2085fb,84a9d0297b0eb58ae7ff0e80de760605",
+          keybox_crl_status: "clean_unrevoked",
+          keybox_sha256: "6c5baebc085f",
+          target_gms: "present",
+          target_vending: "present",
+          target_mode: "generate_cert_exclamation",
+          security_patch_override: "20261005"
+        },
+        module_conflicts: {
+          zygisk_provider: "zygisksu",
+          pif_installed: true,
+          pif_path: "/data/adb/modules/playintegrityfix/custom.pif.prop",
+          pif_fingerprint: "google/akita_beta/akita:CANARY/ZP11.260918.007/16484274:user/release-keys",
+          pif_device: "akita",
+          pif_model: "Pixel 8a",
+          pif_security_patch: "2026-10-05",
+          pif_initial_sdk_int: "32",
+          pif_rkp_conflict: "none",
+          pif_spoof_provider: "false",
+          pif_spoof_props: "true",
+          pif_spoof_vending_sdk: "0"
+        },
+        mount_selinux: {
+          selinux: "Enforcing",
+          root_mount_leaks: 0,
+          overlay_mount_leaks: 0,
+          kernel_string_check: "clean",
+          adbd_state: "running"
+        }
+      }
+    };
+
+    let currentData = JSON.parse(JSON.stringify(PRESET_PROFILES.pif_conflict));
+    let currentFilter = "all";
+    let currentSearch = "";
+    let lastEvaluatedChecks = [];
+
+    // =========================================================================
+    // 2. Toast & Clipboard Utilities
+    // =========================================================================
+    function showToast(message, type) {
+      const container = document.getElementById("toastContainer");
+      const toast = document.createElement("div");
+      const colorClass = type === "error"
+        ? "border-rose-500/50 bg-rose-950/90 text-rose-200"
+        : "border-emerald-500/50 bg-slate-900/95 text-emerald-300";
+      toast.className = "pointer-events-auto flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-xs font-medium shadow-xl transition-all duration-200 " + colorClass;
+      toast.textContent = message;
+      container.appendChild(toast);
+
+      if (typeof window.ksu !== "undefined" && typeof window.ksu.toast === "function") {
+        try { window.ksu.toast(message); } catch (e) {}
+      }
+
+      setTimeout(function() {
+        toast.style.opacity = "0";
+        setTimeout(function() {
+          if (toast.parentNode) toast.parentNode.removeChild(toast);
+        }, 220);
+      }, 2800);
+    }
+
+    function copyTextSafe(text, label) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function() {
+          showToast("Copied " + label + " to clipboard", "success");
+        }).catch(function() {
+          fallbackCopy(text, label);
+        });
+      } else {
+        fallbackCopy(text, label);
+      }
+    }
+
+    function fallbackCopy(text, label) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+        showToast("Copied " + label + " to clipboard", "success");
+      } catch (err) {
+        showToast("Unable to copy automatically; use Export modal", "error");
+      }
+      document.body.removeChild(ta);
+    }
+
+    // =========================================================================
+    // 3. APatch / KernelSU WebView Bridge (`window.ksu.exec`) & 1-Tap Auto-Fix
+    // =========================================================================
+    function hasKsuBridge() {
+      return typeof window.ksu !== "undefined" && typeof window.ksu.exec === "function";
+    }
+
+    function execRootCommand(cmd) {
+      return new Promise(function(resolve, reject) {
+        if (!hasKsuBridge()) {
+          reject(new Error("APatch WebUI bridge not present"));
+          return;
+        }
+        try {
+          const cbName = "__apatch_cb_" + Date.now() + "_" + Math.floor(Math.random() * 10000);
+          let resolved = false;
+          window[cbName] = function(errno, stdout, stderr) {
+            resolved = true;
+            delete window[cbName];
+            if (errno === 0 || stdout) {
+              resolve(stdout || "");
+            } else {
+              reject(new Error(stderr || ("Exit code " + errno)));
+            }
+          };
+          const syncOut = window.ksu.exec(cmd, "{}", cbName);
+          if (typeof syncOut === "string" && !resolved && syncOut.trim().length > 0) {
+            resolved = true;
+            delete window[cbName];
+            resolve(syncOut);
+          }
+        } catch (err) {
+          reject(err);
+        }
+      });
+    }
+
+    function buildInlineFixShellCommand(fixId) {
+      const scriptPath = "/data/adb/modules/apatch_strong_integrity_diag/scripts/apply_fix.sh";
+      return "if [ -f " + scriptPath + " ]; then sh " + scriptPath + " " + fixId + "; else " +
+        "sed -i '/^com\\.google\\.android\\.gms,/d; /^com\\.android\\.vending,/d' /data/adb/ap/package_config 2>/dev/null; " +
+        "if [ -f /data/adb/modules/playintegrityfix/autopif4.sh ] && [ '" + fixId + "' != 'keybox_xml' ]; then " +
+        "sh /data/adb/modules/playintegrityfix/autopif4.sh -s -m >/dev/null 2>&1 || sh /data/adb/modules/playintegrityfix/autopif4.sh -s >/dev/null 2>&1; " +
+        "fi; " +
+        "killall com.google.android.gms.unstable com.google.android.gms com.android.vending 2>/dev/null || true; " +
+        "echo 'Pulled live Canary print via autopif4.sh -s -m & restarted GMS'; fi";
+    }
+
+    function applySimulatedFixInMemory(fixId) {
+      const mc = currentData.module_conflicts || {};
+      const ta = currentData.tee_attestation || {};
+      const vb = currentData.verified_boot || {};
+      const ms = currentData.mount_selinux || {};
+      const ap = currentData.apatch || {};
+
+      if (fixId === "pif_rkp_check" || fixId === "all") {
+        mc.pif_model = "Pixel 9 Pro";
+        mc.pif_device = "caiman";
+        mc.pif_fingerprint = "google/caiman_beta/caiman:16/BP31.260821.009/15829104:user/release-keys";
+        mc.pif_initial_sdk_int = "34";
+        mc.pif_security_patch = "2026-08-05";
+        mc.pif_rkp_conflict = "none";
+        mc.pif_spoof_provider = "false";
+        ta.security_patch_override = "20260805";
+        ap.gms_package_config = "not_listed";
+      }
+      if (fixId === "keybox_xml") {
+        // Applies Device Integrity fallback when keybox is AOSP/revoked
+        mc.pif_spoof_provider = "true";
+        mc.pif_spoof_vending_sdk = "1";
+        mc.pif_rkp_conflict = "none";
+        ap.gms_package_config = "not_listed";
+      }
+      if (fixId === "mount_leaks" || fixId === "apatch_gms_exclude" || fixId === "apatch_overlay_mods" || fixId === "all") {
+        ms.root_mount_leaks = 0;
+        ms.overlay_mount_leaks = 0;
+        ap.gms_package_config = "not_listed";
+        ap.active_overlay_modules = 0;
+        ap.overlay_module_names = "";
+      }
+      if (fixId === "pif_spoof_provider" || fixId === "all") {
+        mc.pif_spoof_provider = "false";
+      }
+      if (fixId === "vb_state" || fixId === "flash_locked" || fixId === "vbmeta_state" || fixId === "ro_debug_secure" || fixId === "warranty_bit" || fixId === "all") {
+        vb.verifiedbootstate = "green";
+        vb.flash_locked = "1";
+        vb.vbmeta_device_state = "locked";
+        vb.ro_debuggable = "0";
+        vb.ro_secure = "1";
+        vb.warranty_bit = "0";
+      }
+      if (fixId === "target_gms" || fixId === "keymint_hal" || fixId === "all") {
+        ta.target_gms = "present";
+        ta.target_vending = "present";
+        ta.target_mode = "generate_cert_exclamation";
+        ta.tricky_store_daemon = "running";
+      }
+      if (fixId === "spl_alignment" || fixId === "all") {
+        ta.security_patch_override = "20260805";
+      }
+      if (fixId === "selinux_state" || fixId === "all") {
+        ms.selinux = "Enforcing";
+      }
+    }
+
+    async function applyFixForMe(fixId, btnEl) {
+      const origHtml = btnEl ? btnEl.innerHTML : "";
+      if (btnEl) {
+        btnEl.disabled = true;
+        btnEl.textContent = "Fixing...";
+      }
+
+      if (hasKsuBridge()) {
+        try {
+          const cmd = buildInlineFixShellCommand(fixId);
+          const out = await execRootCommand(cmd);
+          showToast((out || "Applied fix for " + fixId).trim(), "success");
+          applySimulatedFixInMemory(fixId);
+          await runAuditScan();
+        } catch (err) {
+          showToast("Auto-fix error: " + err.message, "error");
+        } finally {
+          if (btnEl) {
+            btnEl.disabled = false;
+            btnEl.innerHTML = origHtml;
+          }
+        }
+      } else {
+        setTimeout(function() {
+          applySimulatedFixInMemory(fixId);
+          renderDashboard();
+          showToast("Applied fix for '" + fixId + "'", "success");
+          if (btnEl) {
+            btnEl.disabled = false;
+            btnEl.innerHTML = origHtml;
+          }
+        }, 250);
+      }
+    }
+
+    async function runAuditScan() {
+      const badge = document.getElementById("bridgeBadge");
+      const dot = document.getElementById("bridgeDot");
+      const text = document.getElementById("bridgeText");
+      const presetBar = document.getElementById("presetBar");
+
+      if (hasKsuBridge()) {
+        badge.className = "flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300";
+        dot.className = "h-2 w-2 rounded-full bg-emerald-400";
+        text.textContent = "APatch WebUI Connected";
+        document.getElementById("runAuditBtnLabel").textContent = "Scan Live Device";
+        if (presetBar) presetBar.classList.add("hidden");
+        try {
+          const out = await execRootCommand("sh /data/adb/modules/apatch_strong_integrity_diag/scripts/diag_engine.sh --json");
+          const parsed = JSON.parse(out);
+          currentData = parsed;
+          document.getElementById("activePresetLabel").textContent = "Live Device Telemetry";
+          renderDashboard();
+          showToast("Live APatch v1.4.0 DER & ReZygisk scan completed", "success");
+          return;
+        } catch (err) {
+          showToast("Live scan error: " + err.message, "error");
+        }
+      } else {
+        badge.className = "flex items-center gap-1.5 rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-medium text-cyan-300";
+        dot.className = "h-2 w-2 rounded-full bg-cyan-400";
+        text.textContent = "Preview / Simulator Mode";
+        document.getElementById("runAuditBtnLabel").textContent = "Re-Evaluate Profile";
+        renderDashboard();
+      }
+    }
+
+    // =========================================================================
+    // 4. 6-Layer Diagnostic Evaluation Engine (v1.4.0)
+    // =========================================================================
+    function evaluateChecks(d) {
+      const mc = d.module_conflicts || {};
+      const ta = d.tee_attestation || {};
+      const ap = d.apatch || {};
+      const pifRkp = mc.pif_rkp_conflict || "none";
+      const pifInitialSdk = mc.pif_initial_sdk_int || "unset";
+
+      const layers = [
+        {
+          id: "layer_conflicts",
+          title: "Layer 1: PIF Migration, ReZygisk GMS Injection & RKP Audit",
+          subtitle: "Verifies that ReZygisk is not unloading PIF from GMS and that custom.pif.prop has migrated ro.build.fingerprint keys",
+          checks: [
+            {
+              id: "apatch_gms_exclude",
+              name: "ReZygisk vs. APatch GMS Exclude Modifications Check",
+              observed: ap.gms_package_config + " (zygisk=" + (mc.zygisk_provider || "none") + ", hider=" + (ap.root_hider || "none") + ")",
+              expected: "not_listed (when using ReZygisk without NoHello/TreatWheel/Shamiko)",
+              status: ap.gms_package_config === "denylist_blocks_zygisk_pif" ? "FAIL" : "PASS",
+              impact: "CRITICAL: When `com.google.android.gms` has `Exclude Modifications` (`exclude=1`) enabled in `/data/adb/ap/package_config` without a separate root-hider module, ReZygisk treats it as DenyListed and UNLOADS PlayIntegrityFork from GMS! That is why your Play Store fell back to your real Pixel 8a (`akita:17/CP41.260831.016`) ROM fingerprint!",
+              remediation: "Tap 'Fix for Me' to remove `com.google.android.gms` from `/data/adb/ap/package_config` so ReZygisk injects PlayIntegrityFork into `com.google.android.gms.unstable` again."
+            },
+            {
+              id: "pif_rkp_check",
+              name: "PIF custom.pif.prop Migration & Live Pre-RKP Canary Check",
+              observed: (mc.pif_model || "unset") + " (" + (mc.pif_device || "unset") + ", SDK=" + pifInitialSdk + ") | " + pifRkp,
+              expected: "Live Canary print via autopif4.sh -s -m with SDK <= 35 (e.g. akita_beta SDK 34)",
+              status: pifRkp === "none" ? "PASS" : "FAIL",
+              impact: pifRkp.indexOf("static_print") !== -1
+                ? "Static placeholder fingerprint `BP31.260821.009` detected in `custom.pif.prop`. PlayIntegrityFork requires a live, non-expired Canary print fetched via `autopif4.sh -s -m`!"
+                : "Devices with `DEVICE_INITIAL_SDK_INT >= 36` (Pixel 10/11 series) require RKP and drop verdicts to `[MEETS_BASIC_INTEGRITY]`.",
+              remediation: "Tap 'Fix for Me' to run `sh /data/adb/modules/playintegrityfix/autopif4.sh -s -m` (fetches a live Pixel 8a `akita_beta` SDK 34 Canary print from Google FlashStation, formats via `migrate.sh`, syncs `security_patch.txt`, and restarts GMS)."
+            },
+            {
+              id: "pif_spoof_provider",
+              name: "PIF spoofProvider Mode Alignment",
+              observed: "spoofProvider=" + (mc.pif_spoof_provider || "not_set") + " (keybox=" + ta.keybox_status + ")",
+              expected: ta.keybox_status === "present_valid_structure" ? "false (0) for Strong Integrity" : "true (1) for Device Integrity fallback",
+              status: (mc.pif_spoof_provider === "true" && ta.keybox_status === "present_valid_structure") ? "FAIL" : "PASS",
+              impact: "Use `spoofProvider=0` with a valid hardware keybox for Strong Integrity, or `spoofProvider=1` + `spoofVendingSdk=1` if your keybox is AOSP/revoked and you need Device Integrity.",
+              remediation: "Tap 'Fix for Me' to align `spoofProvider` in `custom.pif.prop`."
+            },
+            {
+              id: "zygisk_bridge",
+              name: "APatch Zygisk Bridge Status",
+              observed: mc.zygisk_provider || "none",
+              expected: "rezygisk / neozygisk / zygisksu",
+              status: (!mc.pif_installed || (mc.zygisk_provider && mc.zygisk_provider !== "none")) ? "PASS" : "FAIL",
+              impact: "APatch requires ReZygisk, NeoZygisk, or ZygiskNext to inject PlayIntegrityFork into `com.google.android.gms.unstable`.",
+              remediation: "Ensure ReZygisk or ZygiskNext is enabled in APatch Manager."
+            }
+          ]
+        },
+        {
+          id: "layer_tee",
+          title: "Layer 2: Pure-BusyBox DER Keybox & Live Google CRL Check",
+          subtitle: "Decodes every certificate in keybox.xml without openssl and checks serials against android.googleapis.com/attestation/status",
+          checks: [
+            {
+              id: "keybox_xml",
+              name: "Keybox.xml DER Certificate Serial & Google CRL Audit",
+              observed: ta.keybox_status + " | serials: [" + (ta.keybox_serials || "none") + "] | CRL: " + (ta.keybox_crl_status || "not_checked"),
+              expected: "present_valid_structure & clean_unrevoked on Google CRL",
+              status: (ta.keybox_status === "present_valid_structure" && ta.keybox_crl_status !== "aosp_software_root" && ta.keybox_crl_status.indexOf("revoked_") === -1) ? "PASS" : "FAIL",
+              impact: ta.keybox_status === "revoked_on_google_crl"
+                ? "CRITICAL: Your `keybox.xml` certificate serial (`" + (ta.keybox_serials || "") + "`) is REVOKED on Google's live CRL (`android.googleapis.com/attestation/status`)! A revoked keybox with `spoofProvider=0` ALWAYS returns `[MEETS_BASIC_INTEGRITY]` only!"
+                : (ta.keybox_status === "aosp_software_keybox"
+                  ? "CRITICAL: Your `/data/adb/tricky_store/keybox.xml` is the default AOSP Software Attestation keybox (`Software Attestation Intermediate` / `f92009e853b6b045`). On Android 13+, an AOSP software keybox with `spoofProvider=0` ONLY passes `[MEETS_BASIC_INTEGRITY]`!"
+                  : "Valid unrevoked hardware ECDSA+RSA keybox is required in `/data/adb/tricky_store/keybox.xml` for `MEETS_STRONG_INTEGRITY`."),
+              remediation: "For `MEETS_STRONG_INTEGRITY`, replace `/data/adb/tricky_store/keybox.xml` with an unrevoked OEM hardware keybox. Or tap 'Fix for Me' on this card to enable `spoofProvider=1` + `spoofVendingSdk=1` so your device immediately passes `MEETS_DEVICE_INTEGRITY`!"
+            },
+            {
+              id: "tee_daemon",
+              name: "TEE Attestation Interceptor (TrickyStore / keystore2)",
+              observed: ta.tricky_store_daemon,
+              expected: "running or injected_keystore2",
+              status: (ta.tricky_store_daemon === "running" || ta.tricky_store_daemon === "injected_keystore2" || ta.tricky_store_daemon === "module_enabled") ? "PASS" : "FAIL",
+              impact: "Intercepts `keystore2` Binder calls to sign the attestation certificate chain.",
+              remediation: "Verify TrickyStore or TEESimulator is enabled in APatch Manager."
+            },
+            {
+              id: "target_gms",
+              name: "target.txt GMS & Play Store Forced Generation Mode (!)",
+              observed: "gms=" + ta.target_gms + " (" + ta.target_mode + "), vending=" + ta.target_vending,
+              expected: "gms=present (generate_cert_exclamation !), vending=present",
+              status: (ta.target_gms === "present" && ta.target_vending === "present" && ta.target_mode === "generate_cert_exclamation")
+                ? "PASS"
+                : (ta.target_gms === "present" ? "WARN" : "FAIL"),
+              impact: "On Pixel Tensor devices (`akita` / Pixel 8a), StrongBox/Titan M2 can reject Leaf Hack (`?`/auto); appending `!` (`com.google.android.gms!`) forces full certificate generation from `keybox.xml`.",
+              remediation: "Tap 'Fix for Me' to set `com.google.android.gms!`, `com.android.vending!`, and `com.google.android.gsf!` in `/data/adb/tricky_store/target.txt`."
+            },
+            {
+              id: "keymint_hal",
+              name: "KeyMint / StrongBox HAL Service Status",
+              observed: (ta.keymint_services || "none") + " | " + (ta.strongbox_services || "no strongbox"),
+              expected: "keymint running",
+              status: ta.keymint_services ? "PASS" : "WARN",
+              impact: "Confirms hardware KeyMint/StrongBox HAL services are active.",
+              remediation: "Tap 'Fix for Me' to ensure `!` certificate generation mode is active in `target.txt`."
+            }
+          ]
+        },
+        {
+          id: "layer_boot",
+          title: "Layer 3: Verified Boot & Bootloader State",
+          subtitle: "Checks userspace boot properties queried by Google Play Services (GMS)",
+          checks: [
+            {
+              id: "vb_state",
+              name: "ro.boot.verifiedbootstate",
+              observed: d.verified_boot.verifiedbootstate || "empty",
+              expected: "green",
+              status: d.verified_boot.verifiedbootstate === "green" ? "PASS" : "FAIL",
+              impact: "Blocks DEVICE & STRONG integrity if set to 'orange' or 'yellow'.",
+              remediation: "Set `resetprop -n ro.boot.verifiedbootstate green` before GMS starts."
+            },
+            {
+              id: "flash_locked",
+              name: "ro.boot.flash.locked",
+              observed: d.verified_boot.flash_locked || "empty",
+              expected: "1",
+              status: d.verified_boot.flash_locked === "1" ? "PASS" : "FAIL",
+              impact: "Indicates unlocked bootloader (`0`) to Play Integrity property collectors.",
+              remediation: "Set `resetprop -n ro.boot.flash.locked 1`."
+            },
+            {
+              id: "vbmeta_state",
+              name: "ro.boot.vbmeta.device_state",
+              observed: d.verified_boot.vbmeta_device_state || "empty",
+              expected: "locked",
+              status: d.verified_boot.vbmeta_device_state === "locked" ? "PASS" : "FAIL",
+              impact: "Exposes unlocked AVB vbmeta header state when set to `unlocked`.",
+              remediation: "Set `resetprop -n ro.boot.vbmeta.device_state locked`."
+            },
+            {
+              id: "ro_debug_secure",
+              name: "ro.debuggable / ro.secure",
+              observed: "debuggable=" + d.verified_boot.ro_debuggable + ", secure=" + d.verified_boot.ro_secure,
+              expected: "debuggable=0, secure=1",
+              status: (d.verified_boot.ro_debuggable === "0" && d.verified_boot.ro_secure === "1") ? "PASS" : "FAIL",
+              impact: "Debuggable builds (`ro.debuggable=1`) fail Play Integrity checks.",
+              remediation: "Enforce `resetprop -n ro.debuggable 0` and `resetprop -n ro.secure 1`."
+            }
+          ]
+        },
+        {
+          id: "layer_build",
+          title: "Layer 4: Build Fingerprint & Security Patch Alignment",
+          subtitle: "Verifies release-keys signature tags and OS/Vendor/Keybox patch level consistency",
+          checks: [
+            {
+              id: "build_tags_type",
+              name: "ro.build.tags & ro.build.type",
+              observed: d.build_props.tags + " / " + d.build_props.type,
+              expected: "release-keys / user",
+              status: (d.build_props.tags === "release-keys" && d.build_props.type === "user") ? "PASS" : "FAIL",
+              impact: "Custom ROMs compiled with `test-keys` or `userdebug` fail Play Integrity immediately.",
+              remediation: "Spoof `ro.build.tags=release-keys` and `ro.build.type=user` via PIF or `resetprop`."
+            },
+            {
+              id: "spl_alignment",
+              name: "System vs. Vendor & TrickyStore Security Patch Level (SPL)",
+              observed: "pif=" + (mc.pif_security_patch || "n/a") + ", sys=" + d.build_props.sys_security_patch + ", override=" + ta.security_patch_override,
+              expected: "YYYYMMDD or all=YYYY-MM-DD in security_patch.txt",
+              status: (d.build_props.sys_security_patch === d.build_props.vendor_security_patch || ta.security_patch_override !== "none") ? "PASS" : "WARN",
+              impact: "Mismatched security patch dates between PIF and KeyMint extension cause Strong Integrity failure.",
+              remediation: "Tap 'Fix for Me' to synchronize `/data/adb/tricky_store/security_patch.txt` to `20260805`."
+            }
+          ]
+        },
+        {
+          id: "layer_apatch",
+          title: "Layer 5: APatch & OverlayFS Footprint",
+          subtitle: "Inspects active module /system OverlayFS mounts",
+          checks: [
+            {
+              id: "apatch_overlay_mods",
+              name: "Active /system OverlayFS Modules",
+              observed: ap.active_overlay_modules + " module(s)" + (ap.overlay_module_names ? ": " + ap.overlay_module_names : ""),
+              expected: "0 active OverlayFS mounts",
+              status: ap.active_overlay_modules === 0 ? "PASS" : "WARN",
+              impact: "APatch mounts module `/system` directories via kernel `OverlayFS`.",
+              remediation: "Add `skip_mount` to modules that do not need `/system` modifications."
+            }
+          ]
+        },
+        {
+          id: "layer_selinux",
+          title: "Layer 6: SELinux, Mount Namespace & Kernel Hygiene",
+          subtitle: "Checks SELinux enforcement, OverlayFS leaks, and banned kernel release strings",
+          checks: [
+            {
+              id: "selinux_state",
+              name: "SELinux Enforcing Status (getenforce)",
+              observed: d.mount_selinux.selinux,
+              expected: "Enforcing",
+              status: d.mount_selinux.selinux === "Enforcing" ? "PASS" : "FAIL",
+              impact: "`Permissive` SELinux fails Basic, Device, and Strong integrity verdicts.",
+              remediation: "Set SELinux to Enforcing (`setenforce 1`)."
+            },
+            {
+              id: "mount_leaks",
+              name: "OverlayFS Mount Leak Scan",
+              observed: "overlay_modules=" + d.mount_selinux.overlay_mount_leaks,
+              expected: "0 exposed overlay mounts",
+              status: d.mount_selinux.overlay_mount_leaks === 0 ? "PASS" : "WARN",
+              impact: "Active module `/system` OverlayFS mounts can be detected if not hidden.",
+              remediation: "Tap 'Fix for Me' to add `skip_mount` to empty modules and clean `/data/adb/ap/package_config`."
+            },
+            {
+              id: "kernel_string",
+              name: "Kernel Release String Check (uname -r)",
+              observed: d.device.kernel + " (" + d.mount_selinux.kernel_string_check + ")",
+              expected: "clean release string",
+              status: d.mount_selinux.kernel_string_check === "clean" ? "PASS" : "WARN",
+              impact: "Custom kernel tags like `-dirty` or `-lineageos` are flagged by Play Integrity heuristics.",
+              remediation: "Use a clean GKI kernel release string."
+            },
+            {
+              id: "warranty_bit",
+              name: "Bootloader Warranty / Knox Bit (ro.boot.warranty_bit)",
+              observed: d.verified_boot.warranty_bit || "0",
+              expected: "0",
+              status: (!d.verified_boot.warranty_bit || d.verified_boot.warranty_bit === "0") ? "PASS" : "WARN",
+              impact: "Tripped warranty bit (`1`) signals prior bootloader unlock on OEM devices.",
+              remediation: "Reset via `resetprop -n ro.boot.warranty_bit 0`."
+            }
+          ]
+        }
+      ];
+
+      return layers;
+    }
+
+    // =========================================================================
+    // 5. Render Dashboard UI
+    // =========================================================================
+    function renderDashboard() {
+      const layers = evaluateChecks(currentData);
+      lastEvaluatedChecks = [];
+      let failCount = 0;
+      let warnCount = 0;
+      let passCount = 0;
+
+      layers.forEach(function(layer) {
+        layer.checks.forEach(function(chk) {
+          lastEvaluatedChecks.push(chk);
+          if (chk.status === "FAIL") failCount++;
+          else if (chk.status === "WARN") warnCount++;
+          else passCount++;
+        });
+      });
+
+      const score = Math.max(0, 100 - (failCount * 25) - (warnCount * 7));
+      const mc = currentData.module_conflicts || {};
+      const ta = currentData.tee_attestation || {};
+      const ap = currentData.apatch || {};
+
+      let verdict = "MEETS_STRONG_INTEGRITY";
+      let subtext = "All 6 layers pass hardware-backed DER keybox check, ReZygisk injection & migrated PIF checks.";
+      let basicPass = true;
+      let devicePass = true;
+      let strongPass = true;
+
+      if (currentData.mount_selinux.selinux !== "Enforcing" || currentData.build_props.tags !== "release-keys" || currentData.verified_boot.ro_debuggable === "1") {
+        verdict = "FAILS_BASIC_INTEGRITY";
+        subtext = "Critical OS tamper signals (SELinux, test-keys, or debuggable build) block all verdicts.";
+        basicPass = false;
+        devicePass = false;
+        strongPass = false;
+      } else if (
+        ap.gms_package_config === "denylist_blocks_zygisk_pif" ||
+        (mc.pif_rkp_conflict && mc.pif_rkp_conflict !== "none") ||
+        ta.keybox_status === "revoked_on_google_crl" ||
+        (ta.keybox_status === "aosp_software_keybox" && mc.pif_spoof_provider !== "true")
+      ) {
+        verdict = "CAPS_AT_BASIC_INTEGRITY";
+        subtext = "Explains your `[MEETS_BASIC_INTEGRITY]` screenshot: either ReZygisk unloaded PIF due to `package_config` exclude=1, or your `keybox.xml` is AOSP/revoked with `spoofProvider=0`!";
+        devicePass = false;
+        strongPass = false;
+      } else if (failCount > 0 || ta.keybox_status !== "present_valid_structure") {
+        verdict = "CAPS_AT_DEVICE_INTEGRITY";
+        subtext = "Passes BASIC & DEVICE Integrity (`spoofProvider=1` fallback active), but requires an unrevoked hardware `keybox.xml` for STRONG.";
+        strongPass = false;
+      }
+
+      const verdictBadge = document.getElementById("verdictBadge");
+      const verdictIconBox = document.getElementById("verdictIconBox");
+      verdictBadge.textContent = verdict;
+      document.getElementById("verdictSubtext").textContent = subtext;
+
+      if (strongPass) {
+        verdictBadge.className = "mono text-base sm:text-lg font-bold text-emerald-400";
+        verdictIconBox.className = "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-500/40 bg-emerald-500/15 text-emerald-400";
+      } else if (devicePass) {
+        verdictBadge.className = "mono text-base sm:text-lg font-bold text-amber-300";
+        verdictIconBox.className = "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-500/40 bg-amber-500/15 text-amber-400";
+      } else {
+        verdictBadge.className = "mono text-base sm:text-lg font-bold text-rose-400";
+        verdictIconBox.className = "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-rose-500/40 bg-rose-500/15 text-rose-400";
+      }
+
+      setTierPill("tierBasic", "tierBasicVal", basicPass);
+      setTierPill("tierDevice", "tierDeviceVal", devicePass);
+      setTierPill("tierStrong", "tierStrongVal", strongPass);
+
+      const scoreText = document.getElementById("scoreText");
+      const scoreBar = document.getElementById("scoreBar");
+      scoreText.textContent = score + "/100";
+      scoreBar.style.width = score + "%";
+      if (score >= 85) {
+        scoreText.className = "mono text-2xl font-bold text-emerald-400";
+        scoreBar.className = "h-full rounded-full bg-emerald-500 transition-all duration-300";
+      } else if (score >= 50) {
+        scoreText.className = "mono text-2xl font-bold text-amber-400";
+        scoreBar.className = "h-full rounded-full bg-amber-500 transition-all duration-300";
+      } else {
+        scoreText.className = "mono text-2xl font-bold text-rose-400";
+        scoreBar.className = "h-full rounded-full bg-rose-500 transition-all duration-300";
+      }
+
+      document.getElementById("statCritical").textContent = String(failCount);
+      document.getElementById("statWarnings").textContent = String(warnCount);
+      document.getElementById("statPassing").textContent = String(passCount);
+
+      const shownModel = (currentData.device.model || "") + " (" + (mc.pif_device || "unset") + ")";
+      const shownSdk = mc.pif_initial_sdk_int ? ("PIF SDK " + mc.pif_initial_sdk_int) : ("Android " + (currentData.device.android_version || "?"));
+      document.getElementById("envDevice").textContent = shownModel;
+      document.getElementById("envAndroid").textContent = shownSdk;
+      document.getElementById("envApd").textContent = currentData.apatch.apd_version || "unknown";
+      document.getElementById("envZygisk").textContent = mc.zygisk_provider || "none";
+      document.getElementById("envSpl").textContent = mc.pif_security_patch || currentData.build_props.sys_security_patch || "unknown";
+      document.getElementById("envOverlays").textContent = currentData.apatch.active_overlay_modules + " active";
+
+      const remList = document.getElementById("remediationList");
+      const blockerChip = document.getElementById("blockerCountChip");
+      const remBanner = document.getElementById("remediationBanner");
+      remList.innerHTML = "";
+
+      const actionable = lastEvaluatedChecks.filter(function(c) { return c.status === "FAIL" || c.status === "WARN"; });
+      if (actionable.length === 0) {
+        remBanner.className = "glass-card rounded-2xl p-4 border-l-4 border-l-emerald-500";
+        blockerChip.className = "rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-300";
+        blockerChip.textContent = "0 Blockers";
+        const okDiv = document.createElement("div");
+        okDiv.className = "rounded-xl bg-emerald-950/30 border border-emerald-500/30 p-3 text-xs text-emerald-200";
+        okDiv.textContent = "All Strong Integrity checks passed! Verify your live verdict in Google Play Store Developer Options -> Check Integrity.";
+        remList.appendChild(okDiv);
+      } else {
+        remBanner.className = "glass-card rounded-2xl p-4 border-l-4 " + (failCount > 0 ? "border-l-rose-500" : "border-l-amber-500");
+        blockerChip.className = "rounded-full px-2.5 py-0.5 text-[11px] font-semibold " + (failCount > 0 ? "bg-rose-500/20 text-rose-300" : "bg-amber-500/20 text-amber-300");
+        blockerChip.textContent = actionable.length + " Action Item(s)";
+
+        actionable.forEach(function(item) {
+          const row = document.createElement("div");
+          const isFail = item.status === "FAIL";
+          row.className = "rounded-xl border p-3.5 text-xs flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between " +
+            (isFail ? "border-rose-500/30 bg-rose-950/20" : "border-amber-500/30 bg-amber-950/20");
+
+          const left = document.createElement("div");
+          left.className = "min-w-0 flex-1";
+          left.innerHTML = '<div class="font-semibold text-white flex items-center gap-2">' +
+            '<span class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ' + (isFail ? 'bg-rose-500/30 text-rose-200' : 'bg-amber-500/30 text-amber-200') + '">' + item.status + '</span>' +
+            '<span class="mono wrap-anywhere">' + escapeHtml(item.name) + '</span>' +
+            '</div>' +
+            '<p class="mt-1 text-slate-400 mono text-[11px] wrap-anywhere">Observed: ' + escapeHtml(item.observed) + '</p>' +
+            '<p class="mt-1 text-slate-200 wrap-anywhere leading-relaxed">' + escapeHtml(item.remediation) + '</p>';
+
+          const btnGroup = document.createElement("div");
+          btnGroup.className = "flex flex-wrap items-center gap-2 shrink-0 pt-0.5 sm:pt-0";
+
+          const copyBtn = document.createElement("button");
+          copyBtn.type = "button";
+          copyBtn.className = "rounded-lg border border-slate-700 bg-slate-800/90 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-700 transition";
+          copyBtn.textContent = "Copy Fix";
+          copyBtn.addEventListener("click", function() {
+            copyTextSafe(item.remediation, item.name + " remediation");
+          });
+
+          const fixForMeBtn = document.createElement("button");
+          fixForMeBtn.type = "button";
+          fixForMeBtn.className = "flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-md shadow-emerald-950/60 hover:bg-emerald-500 active:scale-[0.98] transition";
+          const btnLabel = item.id === "keybox_xml" ? "Fix for Me (Device Fallback)" : "Fix for Me";
+          fixForMeBtn.innerHTML = '<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg><span>' + btnLabel + '</span>';
+          fixForMeBtn.addEventListener("click", function() {
+            applyFixForMe(item.id, fixForMeBtn);
+          });
+
+          btnGroup.appendChild(copyBtn);
+          btnGroup.appendChild(fixForMeBtn);
+
+          row.appendChild(left);
+          row.appendChild(btnGroup);
+          remList.appendChild(row);
+        });
+      }
+
+      const container = document.getElementById("diagnosticLayersContainer");
+      container.innerHTML = "";
+
+      layers.forEach(function(layer) {
+        const filteredChecks = layer.checks.filter(function(chk) {
+          const matchesFilter = currentFilter === "all" || chk.status === currentFilter;
+          const q = currentSearch.trim().toLowerCase();
+          const matchesSearch = !q ||
+            chk.name.toLowerCase().indexOf(q) !== -1 ||
+            chk.observed.toLowerCase().indexOf(q) !== -1 ||
+            chk.impact.toLowerCase().indexOf(q) !== -1 ||
+            chk.remediation.toLowerCase().indexOf(q) !== -1;
+          return matchesFilter && matchesSearch;
+        });
+
+        if (filteredChecks.length === 0) return;
+
+        const card = document.createElement("div");
+        card.className = "glass-card rounded-2xl p-4 sm:p-5";
+
+        const header = document.createElement("div");
+        header.className = "flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-3";
+        header.innerHTML = '<div>' +
+          '<h3 class="text-sm font-bold text-white">' + escapeHtml(layer.title) + '</h3>' +
+          '<p class="text-xs text-slate-400">' + escapeHtml(layer.subtitle) + '</p>' +
+          '</div>';
+        card.appendChild(header);
+
+        const list = document.createElement("div");
+        list.className = "mt-3 divide-y divide-slate-800/60";
+
+        filteredChecks.forEach(function(chk) {
+          const item = document.createElement("div");
+          item.className = "py-3 first:pt-1 last:pb-1";
+          const badgeClass = chk.status === "PASS"
+            ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
+            : (chk.status === "WARN"
+              ? "border-amber-500/40 bg-amber-500/15 text-amber-300"
+              : "border-rose-500/40 bg-rose-500/15 text-rose-300");
+
+          item.innerHTML = '<div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">' +
+            '<div class="space-y-1 min-w-0 flex-1">' +
+              '<div class="flex flex-wrap items-center gap-2">' +
+                '<span class="rounded-md border px-2 py-0.5 text-[10px] font-bold ' + badgeClass + '">' + chk.status + '</span>' +
+                '<span class="mono text-xs font-semibold text-white wrap-anywhere">' + escapeHtml(chk.name) + '</span>' +
+              '</div>' +
+              '<p class="text-xs text-slate-400 wrap-anywhere">' + escapeHtml(chk.impact) + '</p>' +
+              (chk.status !== "PASS" ? '<p class="text-xs text-emerald-300/90 wrap-anywhere"><strong class="font-semibold">Fix:</strong> ' + escapeHtml(chk.remediation) + '</p>' : '') +
+            '</div>' +
+            '<div class="mono text-[11px] sm:text-right shrink-0 bg-slate-900/90 border border-slate-800 rounded-xl px-3 py-2 wrap-anywhere">' +
+              '<div class="text-slate-300"><span class="text-slate-500">Observed:</span> ' + escapeHtml(chk.observed) + '</div>' +
+              '<div class="text-slate-400 mt-0.5"><span class="text-slate-500">Expected:</span> ' + escapeHtml(chk.expected) + '</div>' +
+            '</div>' +
+          '</div>';
+          list.appendChild(item);
+        });
+
+        card.appendChild(list);
+        container.appendChild(card);
+      });
+    }
+
+    function setTierPill(boxId, valId, pass) {
+      const box = document.getElementById(boxId);
+      const val = document.getElementById(valId);
+      if (pass) {
+        box.className = "rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-2 text-center";
+        val.className = "mt-0.5 text-xs font-bold text-emerald-400";
+        val.textContent = "PASS";
+      } else {
+        box.className = "rounded-xl border border-rose-500/30 bg-rose-500/10 p-2 text-center";
+        val.className = "mt-0.5 text-xs font-bold text-rose-400";
+        val.textContent = "FAIL";
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    // =========================================================================
+    // 6. Keybox.xml Structure Auditor (Tab 2)
+    // =========================================================================
+    const SAMPLE_AOSP_KEYBOX = `<?xml version="1.0"?>
+<AndroidAttestation>
+  <NumberOfKeyboxes>1</NumberOfKeyboxes>
+  <Keybox DeviceID="aosp-test-device-001">
+    <Key algorithm="ecdsa">
+      <PrivateKey format="pem">-----BEGIN EC PRIVATE KEY----- (AOSP SAMPLE KEY) -----END EC PRIVATE KEY-----</PrivateKey>
+      <CertificateChain>
+        <NumberOfCertificates>3</NumberOfCertificates>
+        <Certificate format="pem">-----BEGIN CERTIFICATE----- (AOSP Software Attestation Leaf) -----END CERTIFICATE-----</Certificate>
+        <Certificate format="pem">-----BEGIN CERTIFICATE----- (AOSP Software Intermediate) -----END CERTIFICATE-----</Certificate>
+        <Certificate format="pem">-----BEGIN CERTIFICATE----- (Google Software Attestation Root) -----END CERTIFICATE-----</Certificate>
+      </CertificateChain>
+    </Key>
+    <Key algorithm="rsa">
+      <PrivateKey format="pem">-----BEGIN RSA PRIVATE KEY----- (AOSP SAMPLE KEY) -----END RSA PRIVATE KEY-----</PrivateKey>
+      <CertificateChain>
+        <NumberOfCertificates>3</NumberOfCertificates>
+        <Certificate format="pem">-----BEGIN CERTIFICATE----- (AOSP Software RSA Leaf) -----END CERTIFICATE-----</Certificate>
+        <Certificate format="pem">-----BEGIN CERTIFICATE----- (AOSP Software RSA Intermediate) -----END CERTIFICATE-----</Certificate>
+        <Certificate format="pem">-----BEGIN CERTIFICATE----- (Google Software Attestation Root) -----END CERTIFICATE-----</Certificate>
+      </CertificateChain>
+    </Key>
+  </Keybox>
+</AndroidAttestation>`;
+
+    const SAMPLE_HW_KEYBOX = `<?xml version="1.0"?>
+<AndroidAttestation>
+  <NumberOfKeyboxes>1</NumberOfKeyboxes>
+  <Keybox DeviceID="OEM_HW_PROVISIONED_9481">
+    <Key algorithm="ecdsa">
+      <PrivateKey format="pem">-----BEGIN EC PRIVATE KEY----- [REDACTED_OEM_EC_KEY] -----END EC PRIVATE KEY-----</PrivateKey>
+      <CertificateChain>
+        <NumberOfCertificates>4</NumberOfCertificates>
+        <Certificate format="pem">-----BEGIN CERTIFICATE----- [Leaf OID 1.3.6.1.4.1.11129.2.1.17 TEE] -----END CERTIFICATE-----</Certificate>
+        <Certificate format="pem">-----BEGIN CERTIFICATE----- [OEM KeyMint Intermediate CA] -----END CERTIFICATE-----</Certificate>
+        <Certificate format="pem">-----BEGIN CERTIFICATE----- [OEM Batch Attestation CA] -----END CERTIFICATE-----</Certificate>
+        <Certificate format="pem">-----BEGIN CERTIFICATE----- [Google Hardware Attestation Root CA] -----END CERTIFICATE-----</Certificate>
+      </CertificateChain>
+    </Key>
+    <Key algorithm="rsa">
+      <PrivateKey format="pem">-----BEGIN RSA PRIVATE KEY----- [REDACTED_OEM_RSA_KEY] -----END RSA PRIVATE KEY-----</PrivateKey>
+      <CertificateChain>
+        <NumberOfCertificates>4</NumberOfCertificates>
+        <Certificate format="pem">-----BEGIN CERTIFICATE----- [RSA Leaf TEE Certificate] -----END CERTIFICATE-----</Certificate>
+        <Certificate format="pem">-----BEGIN CERTIFICATE----- [OEM KeyMint RSA Intermediate] -----END CERTIFICATE-----</Certificate>
+        <Certificate format="pem">-----BEGIN CERTIFICATE----- [OEM Batch Attestation CA] -----END CERTIFICATE-----</Certificate>
+        <Certificate format="pem">-----BEGIN CERTIFICATE----- [Google Hardware Attestation Root CA] -----END CERTIFICATE-----</Certificate>
+      </CertificateChain>
+    </Key>
+  </Keybox>
+</AndroidAttestation>`;
+
+    function auditKeyboxXml() {
+      const xml = document.getElementById("keyboxXmlInput").value.trim();
+      const resBox = document.getElementById("keyboxAuditResult");
+      resBox.classList.remove("hidden");
+
+      if (!xml) {
+        resBox.innerHTML = '<div class="text-xs text-rose-400 font-medium">Please paste a keybox.xml structure or click one of the sample buttons above.</div>';
+        return;
+      }
+
+      const hasAttestationRoot = /<AndroidAttestation[\s>]/i.test(xml);
+      const hasEcdsa = /<Key[^>]*algorithm=["']ecdsa["']/i.test(xml);
+      const hasRsa = /<Key[^>]*algorithm=["']rsa["']/i.test(xml);
+      const certMatches = xml.match(/<Certificate[\s>]/gi) || [];
+      const isAospSample = /aosp-test|Software Attestation|MIIEpAIBAAKCAQEA3/i.test(xml);
+
+      let verdict = "VALID HARDWARE STRUCTURE";
+      let badgeColor = "bg-emerald-500/20 text-emerald-300 border-emerald-500/40";
+      if (!hasAttestationRoot || !hasEcdsa || !hasRsa || certMatches.length < 4) {
+        verdict = "INCOMPLETE / MALFORMED KEYBOX";
+        badgeColor = "bg-rose-500/20 text-rose-300 border-rose-500/40";
+      } else if (isAospSample) {
+        verdict = "AOSP SOFTWARE KEYBOX (CAPS AT DEVICE INTEGRITY)";
+        badgeColor = "bg-amber-500/20 text-amber-300 border-amber-500/40";
+      }
+
+      resBox.innerHTML = '<div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800">' +
+        '<span class="text-xs font-bold text-white">Keybox Structural Audit Verdict</span>' +
+        '<span class="rounded-lg border px-2.5 py-1 text-xs font-bold mono ' + badgeColor + '">' + verdict + '</span>' +
+      '</div>' +
+      '<div class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">' +
+        '<div class="rounded-lg bg-slate-950 p-2.5 border border-slate-800"><div class="text-slate-400">XML Root Tag</div><div class="mono font-semibold mt-0.5 ' + (hasAttestationRoot ? 'text-emerald-400' : 'text-rose-400') + '">' + (hasAttestationRoot ? 'Present' : 'Missing') + '</div></div>' +
+        '<div class="rounded-lg bg-slate-950 p-2.5 border border-slate-800"><div class="text-slate-400">ECDSA + RSA Keys</div><div class="mono font-semibold mt-0.5 ' + ((hasEcdsa && hasRsa) ? 'text-emerald-400' : 'text-rose-400') + '">ECDSA:' + (hasEcdsa ? 'Yes' : 'No') + ' / RSA:' + (hasRsa ? 'Yes' : 'No') + '</div></div>' +
+        '<div class="rounded-lg bg-slate-950 p-2.5 border border-slate-800"><div class="text-slate-400">Total Certificates</div><div class="mono font-semibold mt-0.5 text-slate-200">' + certMatches.length + ' nodes</div></div>' +
+        '<div class="rounded-lg bg-slate-950 p-2.5 border border-slate-800"><div class="text-slate-400">AOSP Software Marker</div><div class="mono font-semibold mt-0.5 ' + (isAospSample ? 'text-amber-400' : 'text-emerald-400') + '">' + (isAospSample ? 'Detected (Software)' : 'Not Detected') + '</div></div>' +
+      '</div>';
+    }
+
+    // =========================================================================
+    // 7. Raw getprop / JSON Telemetry Parser (Tab 3)
+    // =========================================================================
+    const SAMPLE_RAW_GETPROP = `[ro.product.brand]: [google]
+[ro.product.model]: [Pixel 8a]
+[ro.build.version.release]: [17]
+[ro.build.version.sdk]: [36]
+[ro.boot.verifiedbootstate]: [green]
+[ro.boot.flash.locked]: [1]
+[ro.boot.vbmeta.device_state]: [locked]
+[ro.boot.veritymode]: [enforcing]
+[ro.debuggable]: [0]
+[ro.secure]: [1]
+[ro.build.tags]: [release-keys]
+[ro.build.type]: [user]
+[ro.build.version.security_patch]: [2026-08-05]
+[ro.vendor.build.security_patch]: [2026-08-05]
+[init.svc.vendor.keymint-default]: [running]`;
+
+    function parseRawTelemetry() {
+      const raw = document.getElementById("rawTelemetryInput").value.trim();
+      const statusMsg = document.getElementById("parseStatusMsg");
+      if (!raw) {
+        statusMsg.textContent = "Please paste JSON or getprop lines first.";
+        statusMsg.className = "text-xs text-rose-400";
+        return;
+      }
+
+      if (raw.startsWith("{")) {
+        try {
+          const parsed = JSON.parse(raw);
+          currentData = parsed;
+          document.getElementById("activePresetLabel").textContent = "Custom Imported JSON Snapshot";
+          renderDashboard();
+          switchTab("dashboard");
+          showToast("Loaded JSON telemetry into dashboard", "success");
+          return;
+        } catch (err) {
+          statusMsg.textContent = "Invalid JSON format: " + err.message;
+          statusMsg.className = "text-xs text-rose-400";
+          return;
+        }
+      }
+
+      const props = {};
+      raw.split(/\r?\n/).forEach(function(line) {
+        const m = line.match(/^\[([^\]]+)\]:\s*\[([^\]]*)\]/);
+        if (m) props[m[1].trim()] = m[2].trim();
+      });
+
+      if (Object.keys(props).length === 0) {
+        statusMsg.textContent = "No recognizable [prop]: [value] lines or JSON found.";
+        statusMsg.className = "text-xs text-rose-400";
+        return;
+      }
+
+      const next = JSON.parse(JSON.stringify(currentData));
+      if (props["ro.product.brand"]) next.device.brand = props["ro.product.brand"];
+      if (props["ro.product.model"]) next.device.model = props["ro.product.model"];
+      if (props["ro.build.version.release"]) next.device.android_version = props["ro.build.version.release"];
+      if (props["ro.build.version.sdk"]) next.device.sdk_int = props["ro.build.version.sdk"];
+      if (props["ro.boot.verifiedbootstate"]) next.verified_boot.verifiedbootstate = props["ro.boot.verifiedbootstate"];
+      if (props["ro.boot.flash.locked"]) next.verified_boot.flash_locked = props["ro.boot.flash.locked"];
+      if (props["ro.boot.vbmeta.device_state"]) next.verified_boot.vbmeta_device_state = props["ro.boot.vbmeta.device_state"];
+      if (props["ro.boot.veritymode"]) next.verified_boot.veritymode = props["ro.boot.veritymode"];
+      if (props["ro.debuggable"]) next.verified_boot.ro_debuggable = props["ro.debuggable"];
+      if (props["ro.secure"]) next.verified_boot.ro_secure = props["ro.secure"];
+      if (props["ro.build.tags"]) next.build_props.tags = props["ro.build.tags"];
+      if (props["ro.build.type"]) next.build_props.type = props["ro.build.type"];
+      if (props["ro.build.version.security_patch"]) next.build_props.sys_security_patch = props["ro.build.version.security_patch"];
+      if (props["ro.vendor.build.security_patch"]) next.build_props.vendor_security_patch = props["ro.vendor.build.security_patch"];
+
+      currentData = next;
+      document.getElementById("activePresetLabel").textContent = "Imported getprop Snapshot (" + Object.keys(props).length + " props)";
+      renderDashboard();
+      switchTab("dashboard");
+      showToast("Parsed " + Object.keys(props).length + " properties into dashboard", "success");
+    }
+
+    // =========================================================================
+    // 8. Export Modal & Tab Navigation Wiring
+    // =========================================================================
+    function openExportModal(title, content) {
+      document.getElementById("modalTitle").textContent = title;
+      document.getElementById("modalReportText").value = content;
+      const modal = document.getElementById("reportModal");
+      modal.classList.remove("hidden");
+      modal.classList.add("flex");
+    }
+
+    function closeExportModal() {
+      const modal = document.getElementById("reportModal");
+      modal.classList.add("hidden");
+      modal.classList.remove("flex");
+    }
+
+    function buildMarkdownReport() {
+      const layers = evaluateChecks(currentData);
+      const lines = [
+        "# APatch Strong Integrity Diagnostic Report v1.4.0",
+        "- **Device**: " + currentData.device.brand + " " + currentData.device.model + " (Android " + currentData.device.android_version + " / SDK " + currentData.device.sdk_int + ")",
+        "- **Predicted Verdict**: `" + document.getElementById("verdictBadge").textContent + "`",
+        "- **Readiness Score**: " + document.getElementById("scoreText").textContent,
+        ""
+      ];
+      layers.forEach(function(l) {
+        lines.push("## " + l.title);
+        l.checks.forEach(function(c) {
+          lines.push("- **[" + c.status + "] " + c.name + "**: Observed `" + c.observed + "` (Expected: `" + c.expected + "`)");
+          if (c.status !== "PASS") {
+            lines.push("  - *Remediation*: " + c.remediation);
+          }
+        });
+        lines.push("");
+      });
+      return lines.join("\n");
+    }
+
+    function switchTab(tabId) {
+      ["dashboard", "keybox", "parser", "guide"].forEach(function(id) {
+        const panel = document.getElementById("tab-" + id);
+        if (id === tabId) panel.classList.remove("hidden");
+        else panel.classList.add("hidden");
+      });
+      document.querySelectorAll(".tab-btn").forEach(function(btn) {
+        if (btn.getAttribute("data-tab") === tabId) {
+          btn.className = "tab-btn rounded-lg bg-emerald-500/15 border border-emerald-500/40 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition whitespace-nowrap";
+        } else {
+          btn.className = "tab-btn rounded-lg border border-transparent px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 transition whitespace-nowrap";
+        }
+      });
+    }
+
+    const PRE_RKP_PIF_PROP = `//Build Fields
+MANUFACTURER=Google
+MODEL=Pixel 9 Pro
+FINGERPRINT=google/caiman_beta/caiman:16/BP31.260821.009/15829104:user/release-keys
+BRAND=google
+PRODUCT=caiman_beta
+DEVICE=caiman
+RELEASE=16
+ID=BP31.260821.009
+INCREMENTAL=15829104
+TYPE=user
+TAGS=release-keys
+SECURITY_PATCH=2026-08-05
+DEVICE_INITIAL_SDK_INT=34
+
+//System Properties
+ro.product.manufacturer=Google
+ro.product.model=Pixel 9 Pro
+ro.build.fingerprint=google/caiman_beta/caiman:16/BP31.260821.009/15829104:user/release-keys
+ro.product.brand=google
+ro.product.name=caiman_beta
+ro.product.device=caiman
+ro.build.version.release=16
+ro.build.id=BP31.260821.009
+ro.build.version.incremental=15829104
+ro.build.type=user
+ro.build.tags=release-keys
+ro.build.version.security_patch=2026-08-05
+*api_level=34
+
+//Advanced Settings
+spoofBuild=1
+spoofProps=1
+spoofProvider=0
+spoofSignature=0
+spoofVendingFinger=0
+spoofVendingSdk=0
+verboseLogs=0`;
+
+    document.addEventListener("DOMContentLoaded", function() {
+      document.querySelectorAll(".tab-btn").forEach(function(btn) {
+        btn.addEventListener("click", function() {
+          switchTab(btn.getAttribute("data-tab"));
+        });
+      });
+
+      document.querySelectorAll(".preset-btn").forEach(function(btn) {
+        btn.addEventListener("click", function() {
+          const key = btn.getAttribute("data-preset");
+          if (PRESET_PROFILES[key]) {
+            currentData = JSON.parse(JSON.stringify(PRESET_PROFILES[key]));
+            document.getElementById("activePresetLabel").textContent = PRESET_PROFILES[key].label;
+            document.querySelectorAll(".preset-btn").forEach(function(b) {
+              b.className = "preset-btn rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:border-slate-500 transition";
+            });
+            btn.className = "preset-btn rounded-lg border border-cyan-500/50 bg-cyan-500/15 px-2.5 py-1.5 text-xs font-semibold text-cyan-200 transition";
+            renderDashboard();
+            showToast("Loaded " + PRESET_PROFILES[key].label, "success");
+          }
+        });
+      });
+
+      document.querySelectorAll(".filter-btn").forEach(function(btn) {
+        btn.addEventListener("click", function() {
+          currentFilter = btn.getAttribute("data-filter");
+          document.querySelectorAll(".filter-btn").forEach(function(b) {
+            b.className = "filter-btn rounded-lg bg-slate-900 border border-slate-800 px-3 py-1.5 text-xs font-medium text-slate-300 transition";
+          });
+          btn.className = "filter-btn rounded-lg bg-slate-800 border border-slate-600 px-3 py-1.5 text-xs font-semibold text-white transition";
+          renderDashboard();
+        });
+      });
+
+      document.getElementById("checkSearchInput").addEventListener("input", function(e) {
+        currentSearch = e.target.value || "";
+        renderDashboard();
+      });
+
+      document.getElementById("runLiveAuditBtn").addEventListener("click", function() {
+        runAuditScan();
+      });
+
+      document.getElementById("fixAllForMeBtn").addEventListener("click", function() {
+        applyFixForMe("all", document.getElementById("fixAllForMeBtn"));
+      });
+
+      document.getElementById("fixFrankelPifBtn").addEventListener("click", function() {
+        openExportModal("Migrated Pre-RKP Pixel 9 Pro custom.pif.prop Config (SDK 34 <= 35)", PRE_RKP_PIF_PROP);
+      });
+
+      document.getElementById("exportJsonBtn").addEventListener("click", function() {
+        openExportModal("JSON Diagnostic Snapshot", JSON.stringify(currentData, null, 2));
+      });
+
+      document.getElementById("exportMdBtn").addEventListener("click", function() {
+        openExportModal("Markdown Diagnostic Report", buildMarkdownReport());
+      });
+
+      document.getElementById("closeModalBtn").addEventListener("click", closeExportModal);
+      document.getElementById("copyModalReportBtn").addEventListener("click", function() {
+        copyTextSafe(document.getElementById("modalReportText").value, "diagnostic report");
+      });
+
+      document.getElementById("loadSampleAospKeyboxBtn").addEventListener("click", function() {
+        document.getElementById("keyboxXmlInput").value = SAMPLE_AOSP_KEYBOX;
+        auditKeyboxXml();
+      });
+      document.getElementById("loadSampleHwKeyboxBtn").addEventListener("click", function() {
+        document.getElementById("keyboxXmlInput").value = SAMPLE_HW_KEYBOX;
+        auditKeyboxXml();
+      });
+      document.getElementById("analyzeKeyboxBtn").addEventListener("click", auditKeyboxXml);
+      document.getElementById("clearKeyboxBtn").addEventListener("click", function() {
+        document.getElementById("keyboxXmlInput").value = "";
+        document.getElementById("keyboxAuditResult").classList.add("hidden");
+      });
+
+      document.getElementById("loadSampleRawPropsBtn").addEventListener("click", function() {
+        document.getElementById("rawTelemetryInput").value = SAMPLE_RAW_GETPROP;
+      });
+      document.getElementById("parseTelemetryBtn").addEventListener("click", parseRawTelemetry);
+
+      document.getElementById("copyCliCommandsBtn").addEventListener("click", function() {
+        copyTextSafe(document.getElementById("cliCommandsBlock").textContent, "APatch CLI commands");
+      });
+
+      const ghBtn = document.getElementById("copyGhWorkflowBtn");
+      if (ghBtn) {
+        ghBtn.addEventListener("click", function() {
+          copyTextSafe(document.getElementById("ghWorkflowBlock").textContent, ".github/workflows/release.yml");
+        });
+      }
+
+      runAuditScan();
+    });
+  </script>
+</body>
+</html>

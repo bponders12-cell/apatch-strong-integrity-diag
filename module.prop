@@ -1,0 +1,6 @@
+id=apatch_strong_integrity_diag
+name=APatch Strong Integrity Diagnostics
+version=v1.4.0
+versionCode=140
+author=IntegrityAudit
+description=6-layer diagnostic & 1-tap auto-fix suite for APatch (v1.4.0). Fixes clean_unrevoked CRL check, recognizes migrate.sh *.build.id schema, and runs live autopif4.sh -s -m for Pixel 8a (akita_beta).
