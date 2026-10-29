@@ -1,13 +1,19 @@
 #!/system/bin/sh
-# APatch Manager Action Button Entry Point
+# APatch Manager Action Button Handler (v1.6.3)
 MODDIR=${0%/*}
-REPORT_TXT="/sdcard/Download/apatch_strong_integrity_report.txt"
-REPORT_JSON="$MODDIR/last_report.json"
+REPORT_JSON="/data/local/tmp/apatch_strong_integrity_report.json"
+REPORT_TXT="/data/local/tmp/apatch_strong_integrity_report.txt"
 
-echo "- Running APatch Strong Integrity Diagnostics v1.4.0..."
-sh "$MODDIR/scripts/diag_engine.sh" --json > "$REPORT_JSON" 2>/dev/null
+echo "========================================================"
+echo "  APatch Strong Integrity Auditor & Auto-Fixer v1.6.3   "
+echo "========================================================"
+
+sh "$MODDIR/scripts/apply_fix.sh" all
 sh "$MODDIR/scripts/diag_engine.sh" --text | tee "$REPORT_TXT"
+sh "$MODDIR/scripts/diag_engine.sh" --json > "$REPORT_JSON"
+
 echo ""
-echo "- Saved JSON snapshot to: $REPORT_JSON"
-echo "- Saved text report to  : $REPORT_TXT"
-sleep 2
+echo "[+] Saved JSON telemetry to: $REPORT_JSON"
+echo "[+] Saved text summary to  : $REPORT_TXT"
+echo "[+] Tip: Tap the WebUI button in APatch Manager for interactive 1-tap fixes."
+exit 0

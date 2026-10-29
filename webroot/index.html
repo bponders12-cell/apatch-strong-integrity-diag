@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>APatch Strong Integrity Diagnostics — WebUI &amp; Auditor v1.4.0</title>
+  <title>APatch Strong Integrity Diagnostics — WebUI &amp; Auditor v1.6.3</title>
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -100,7 +100,7 @@
         <div>
           <div class="flex items-center gap-2">
             <h1 class="text-sm font-bold tracking-tight text-white sm:text-base">APatch Strong Integrity Auditor</h1>
-            <span class="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 border border-emerald-500/30">v1.4.0</span>
+            <span class="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 border border-emerald-500/30">v1.6.3</span>
           </div>
           <p class="text-[11px] text-slate-400">Pure-BusyBox DER Keybox Parser, ReZygisk Unblocker &amp; PIF Migrator</p>
         </div>
@@ -293,7 +293,7 @@
               Fix All For Me
             </button>
             <button id="fixFrankelPifBtn" type="button" class="flex-1 sm:flex-none rounded-xl bg-amber-500/20 border border-amber-500/40 px-3 py-2 text-xs font-semibold text-amber-200 hover:bg-amber-500/30 transition">
-              Copy Pre-RKP Pixel 9 Pro custom.pif.prop Fix
+              Test Device Integrity Mode (spoofProvider=1)
             </button>
           </div>
         </div>
@@ -396,17 +396,17 @@
     <div id="tab-guide" class="hidden space-y-4">
       <div class="glass-card rounded-2xl p-5 space-y-4">
         <div>
-          <h2 class="text-base font-bold text-white">APatch Module Architecture &amp; CLI Reference (v1.4.0)</h2>
+          <h2 class="text-base font-bold text-white">APatch Module Architecture &amp; CLI Reference (v1.6.3)</h2>
           <p class="mt-1 text-xs text-slate-400">
-            Upgraded in v1.4.0 with a pure-BusyBox ASN.1 DER certificate parser (no <span class="mono text-slate-300">openssl</span> binary required), automatic removal of the ReZygisk <span class="mono text-rose-300">package_config</span> GMS DenyList block, and full <span class="mono text-emerald-300">migrate.sh</span>-formatted <span class="mono text-emerald-300">custom.pif.prop</span> generation.
+            Upgraded in v1.6.3 with a pure-BusyBox ASN.1 DER certificate parser (no <span class="mono text-slate-300">openssl</span> binary required), automatic removal of the ReZygisk <span class="mono text-rose-300">package_config</span> GMS DenyList block, and full <span class="mono text-emerald-300">migrate.sh</span>-formatted <span class="mono text-emerald-300">custom.pif.prop</span> generation.
           </p>
         </div>
 
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div class="rounded-xl border border-slate-800 bg-slate-900/80 p-4">
             <h3 class="text-xs font-semibold uppercase tracking-wider text-emerald-400">Package Layout</h3>
-            <pre class="mono mt-2 text-xs text-slate-300 overflow-x-auto leading-relaxed">apatch_strong_integrity_diag_v1.4.0.zip
-├── module.prop              # APM metadata (v1.4.0)
+            <pre class="mono mt-2 text-xs text-slate-300 overflow-x-auto leading-relaxed">apatch_strong_integrity_diag_v1.6.3.zip
+├── module.prop              # APM metadata (v1.6.3)
 ├── customize.sh             # Installer hook + skip_mount
 ├── action.sh                # APatch Manager Action button
 ├── scripts/
@@ -515,8 +515,8 @@ jobs:
     // =========================================================================
     const PRESET_PROFILES = {
       pif_conflict: {
-        label: "Your Latest Report: Pixel 8a (Valid Hardware Keybox + Needs Live autopif4 -s -m)",
-        timestamp: "2026-10-25T10:20:00Z",
+        label: "Your Screenshot 19:15: RKP Keybox Missing RSA Key (ecdsa:1,rsa:00) + Live ro.build.fingerprint Still CP41.260831.016",
+        timestamp: "2026-10-28T23:11:52Z",
         device: {
           model: "Pixel 8a",
           brand: "google",
@@ -525,7 +525,7 @@ jobs:
           kernel: "6.1.172-android14-11-g8d0115b07367-ab16385437"
         },
         apatch: {
-          apd_version: "10763",
+          apd_version: "apd 11282",
           busybox: "present",
           gms_package_config: "not_listed",
           root_hider: "none",
@@ -547,37 +547,38 @@ jobs:
           fingerprint: "google/akita_beta/akita:17/CP41.260831.016/16521119:user/release-keys",
           sys_security_patch: "2026-10-05",
           vendor_security_patch: "2026-10-05",
-          boot_security_patch: "2026-10-05"
+          boot_security_patch: ""
         },
         tee_attestation: {
           keymint_services: "[init.svc.vendor.keymint-citadel]: [running];[init.svc.vendor.keymint.rust-trusty]: [running]",
           strongbox_services: "no strongbox",
           tricky_store_installed: true,
-          tricky_store_daemon: "module_enabled",
-          keybox_status: "present_valid_structure",
-          keybox_cert_count: 4,
-          keybox_algorithms: "ecdsa:1,rsa:1",
-          keybox_serials: "8761da14a792fc05fb4ac99c17e996ae,3214da834ac6e3dae599cd7e119b4a02758058,924250191903e3ba65320efd6a2085fb,84a9d0297b0eb58ae7ff0e80de760605",
-          keybox_crl_status: "clean_unrevoked",
-          keybox_sha256: "valid_hw_kb",
+          tricky_store_daemon: "injected_keystore2",
+          keybox_status: "rkp_ecdsa_only_missing_rsa_key",
+          keybox_cert_count: 5,
+          keybox_algorithms: "ecdsa:1,rsa:0",
+          keybox_serials: "ebe82afb8b019ca17bed42839ba51e9e,295c66b3632108a48c2abe0f6d560c1a3f352a,f2c2fe02dfcdd01181e4a3e6b369a28c,84a9d0297b0eb58ae7ff0e80de760605",
+          keybox_crl_status: "clean_unrevoked_needs_rsa_splice (valid_until_2026-10-30)",
+          keybox_sha256: "b4cac210d682",
           target_gms: "present",
           target_vending: "present",
           target_mode: "generate_cert_exclamation",
-          security_patch_override: "20260805"
+          security_patch_override: "20261005"
         },
         module_conflicts: {
-          zygisk_provider: "zygisksu",
+          zygisk_provider: "rezygisk",
           pif_installed: true,
           pif_path: "/data/adb/modules/playintegrityfix/custom.pif.prop",
-          pif_fingerprint: "google/caiman_beta/caiman:16/BP31.260821.009/15829104:user/release-keys",
-          pif_device: "caiman",
-          pif_model: "Pixel 9 Pro",
-          pif_security_patch: "2026-08-05",
-          pif_initial_sdk_int: "34",
-          pif_rkp_conflict: "static_print_needs_live_autopif4 (tap Fix for Me)",
+          pif_fingerprint: "google/bluejay_beta/bluejay:CANARY/ZP11.260918.007/16484274:user/release-keys",
+          pif_device: "bluejay",
+          pif_model: "Pixel 6a",
+          pif_security_patch: "2026-10-05",
+          pif_initial_sdk_int: "32",
+          pif_rkp_conflict: "host_ro_build_fingerprint_still_expired_CP41 (tap Fix for Me to resetprop -n)",
           pif_spoof_provider: "false",
           pif_spoof_props: "true",
-          pif_spoof_vending_sdk: "0"
+          pif_spoof_vending_sdk: "0",
+          pif_spoof_vending_finger: "1"
         },
         mount_selinux: {
           selinux: "Enforcing",
@@ -778,7 +779,7 @@ jobs:
           tricky_store_daemon: "module_enabled",
           keybox_status: "present_valid_structure",
           keybox_cert_count: 5,
-          keybox_algorithms: "ecdsa:1,rsa:00",
+          keybox_algorithms: "ecdsa:1,rsa:0",
           keybox_serials: "8761da14a792fc05fb4ac99c17e996ae,3214da834ac6e3dae599cd7e119b4a02758058,924250191903e3ba65320efd6a2085fb,84a9d0297b0eb58ae7ff0e80de760605",
           keybox_crl_status: "clean_unrevoked",
           keybox_sha256: "6c5baebc085f",
@@ -909,12 +910,11 @@ jobs:
     function buildInlineFixShellCommand(fixId) {
       const scriptPath = "/data/adb/modules/apatch_strong_integrity_diag/scripts/apply_fix.sh";
       return "if [ -f " + scriptPath + " ]; then sh " + scriptPath + " " + fixId + "; else " +
-        "sed -i '/^com\\.google\\.android\\.gms,/d; /^com\\.android\\.vending,/d' /data/adb/ap/package_config 2>/dev/null; " +
-        "if [ -f /data/adb/modules/playintegrityfix/autopif4.sh ] && [ '" + fixId + "' != 'keybox_xml' ]; then " +
-        "sh /data/adb/modules/playintegrityfix/autopif4.sh -s -m >/dev/null 2>&1 || sh /data/adb/modules/playintegrityfix/autopif4.sh -s >/dev/null 2>&1; " +
-        "fi; " +
+        "for p in ro.build.fingerprint ro.system.build.fingerprint ro.system_ext.build.fingerprint ro.product.build.fingerprint ro.vendor.build.fingerprint ro.odm.build.fingerprint ro.bootimage.build.fingerprint; do " +
+        "resetprop -n $p 'google/akita_beta/akita:CANARY/ZP11.260918.007/16484274:user/release-keys' 2>/dev/null; done; " +
+        "resetprop -n ro.build.id 'ZP11.260918.007' 2>/dev/null; resetprop -n ro.build.version.incremental '16484274' 2>/dev/null; " +
         "killall com.google.android.gms.unstable com.google.android.gms com.android.vending 2>/dev/null || true; " +
-        "echo 'Pulled live Canary print via autopif4.sh -s -m & restarted GMS'; fi";
+        "echo 'Replaced expired CP41 ro.build.fingerprint via resetprop -n'; fi";
     }
 
     function applySimulatedFixInMemory(fixId) {
@@ -925,22 +925,25 @@ jobs:
       const ap = currentData.apatch || {};
 
       if (fixId === "pif_rkp_check" || fixId === "all") {
-        mc.pif_model = "Pixel 9 Pro";
-        mc.pif_device = "caiman";
-        mc.pif_fingerprint = "google/caiman_beta/caiman:16/BP31.260821.009/15829104:user/release-keys";
-        mc.pif_initial_sdk_int = "34";
-        mc.pif_security_patch = "2026-08-05";
+        mc.pif_model = "Pixel 6a";
+        mc.pif_device = "bluejay";
+        mc.pif_fingerprint = "google/bluejay_beta/bluejay:CANARY/ZP11.260918.007/16484274:user/release-keys";
+        mc.pif_initial_sdk_int = "32";
+        mc.pif_security_patch = "2026-10-05";
         mc.pif_rkp_conflict = "none";
         mc.pif_spoof_provider = "false";
-        ta.security_patch_override = "20260805";
+        mc.pif_spoof_vending_finger = "1";
+        ta.security_patch_override = "all=2026-10-05";
         ap.gms_package_config = "not_listed";
+        if (currentData.build_props) {
+          currentData.build_props.fingerprint = "google/akita_beta/akita:CANARY/ZP11.260918.007/16484274:user/release-keys";
+        }
       }
-      if (fixId === "keybox_xml") {
-        // Applies Device Integrity fallback when keybox is AOSP/revoked
-        mc.pif_spoof_provider = "true";
-        mc.pif_spoof_vending_sdk = "1";
-        mc.pif_rkp_conflict = "none";
-        ap.gms_package_config = "not_listed";
+      if (fixId === "keybox_xml" || fixId === "all") {
+        ta.keybox_status = "present_valid_structure";
+        ta.keybox_algorithms = "ecdsa:1,rsa:1";
+        ta.keybox_crl_status = "clean_unrevoked (valid_until_2026-10-30)";
+        mc.pif_spoof_provider = "false";
       }
       if (fixId === "mount_leaks" || fixId === "apatch_gms_exclude" || fixId === "apatch_overlay_mods" || fixId === "all") {
         ms.root_mount_leaks = 0;
@@ -951,6 +954,10 @@ jobs:
       }
       if (fixId === "pif_spoof_provider" || fixId === "all") {
         mc.pif_spoof_provider = "false";
+      }
+      if (fixId === "pif_device_fallback") {
+        mc.pif_spoof_provider = "true";
+        ta.security_patch_override = "all=2026-10-05";
       }
       if (fixId === "vb_state" || fixId === "flash_locked" || fixId === "vbmeta_state" || fixId === "ro_debug_secure" || fixId === "warranty_bit" || fixId === "all") {
         vb.verifiedbootstate = "green";
@@ -967,7 +974,8 @@ jobs:
         ta.tricky_store_daemon = "running";
       }
       if (fixId === "spl_alignment" || fixId === "all") {
-        ta.security_patch_override = "20260805";
+        mc.pif_security_patch = "2026-10-05";
+        ta.security_patch_override = "all=2026-10-05";
       }
       if (fixId === "selinux_state" || fixId === "all") {
         ms.selinux = "Enforcing";
@@ -1027,7 +1035,7 @@ jobs:
           currentData = parsed;
           document.getElementById("activePresetLabel").textContent = "Live Device Telemetry";
           renderDashboard();
-          showToast("Live APatch v1.4.0 DER & ReZygisk scan completed", "success");
+          showToast("Live APatch v1.6.3 DER & ReZygisk scan completed", "success");
           return;
         } catch (err) {
           showToast("Live scan error: " + err.message, "error");
@@ -1042,7 +1050,7 @@ jobs:
     }
 
     // =========================================================================
-    // 4. 6-Layer Diagnostic Evaluation Engine (v1.4.0)
+    // 4. 6-Layer Diagnostic Evaluation Engine (v1.6.3)
     // =========================================================================
     function evaluateChecks(d) {
       const mc = d.module_conflicts || {};
@@ -1068,14 +1076,12 @@ jobs:
             },
             {
               id: "pif_rkp_check",
-              name: "PIF custom.pif.prop Migration & Live Pre-RKP Canary Check",
-              observed: (mc.pif_model || "unset") + " (" + (mc.pif_device || "unset") + ", SDK=" + pifInitialSdk + ") | " + pifRkp,
-              expected: "Live Canary print via autopif4.sh -s -m with SDK <= 35 (e.g. akita_beta SDK 34)",
-              status: pifRkp === "none" ? "PASS" : "FAIL",
-              impact: pifRkp.indexOf("static_print") !== -1
-                ? "Static placeholder fingerprint `BP31.260821.009` detected in `custom.pif.prop`. PlayIntegrityFork requires a live, non-expired Canary print fetched via `autopif4.sh -s -m`!"
-                : "Devices with `DEVICE_INITIAL_SDK_INT >= 36` (Pixel 10/11 series) require RKP and drop verdicts to `[MEETS_BASIC_INTEGRITY]`.",
-              remediation: "Tap 'Fix for Me' to run `sh /data/adb/modules/playintegrityfix/autopif4.sh -s -m` (fetches a live Pixel 8a `akita_beta` SDK 34 Canary print from Google FlashStation, formats via `migrate.sh`, syncs `security_patch.txt`, and restarts GMS)."
+              name: "Live ro.build.fingerprint (resetprop) & PIF Canary Audit",
+              observed: "host=" + ((d.build_props && d.build_props.fingerprint) ? d.build_props.fingerprint.split("/").slice(3, 5).join("/") : "unset") + " | pif=" + (mc.pif_device || "unset") + " (SDK=" + pifInitialSdk + ") | " + pifRkp,
+              expected: "resetprop ro.build.fingerprint = CANARY/ZP11.260918.007 (not CP41.260831.016)",
+              status: (pifRkp === "none" && (!d.build_props || !d.build_props.fingerprint || d.build_props.fingerprint.indexOf("CP41.") === -1)) ? "PASS" : "FAIL",
+              impact: "CRITICAL: In your Play Store screenshot (`Screenshot_20261028-191553.png`), `Build fingerprint:` still shows `google/akita_beta/akita:17/CP41.260831.016/16521119:user/release-keys`! Because `CP41.260831.016` is an expired August 31 Android 17 QPR Beta build and PIF's Zygisk hook is not overriding `ro.build.fingerprint` inside Play Store, Play Store sees the expired `CP41` print unless `resetprop -n` replaces `ro.*.build.fingerprint` directly in kernel memory!",
+              remediation: "Tap 'Fix for Me' to run `resetprop -n` on `ro.build.fingerprint` (and all partition fingerprint props) to `google/akita_beta/akita:CANARY/ZP11.260918.007/16484274:user/release-keys` and restart Play Store."
             },
             {
               id: "pif_spoof_provider",
@@ -1104,36 +1110,32 @@ jobs:
           checks: [
             {
               id: "keybox_xml",
-              name: "Keybox.xml DER Certificate Serial & Google CRL Audit",
-              observed: ta.keybox_status + " | serials: [" + (ta.keybox_serials || "none") + "] | CRL: " + (ta.keybox_crl_status || "not_checked"),
-              expected: "present_valid_structure & clean_unrevoked on Google CRL",
-              status: (ta.keybox_status === "present_valid_structure" && ta.keybox_crl_status !== "aosp_software_root" && ta.keybox_crl_status.indexOf("revoked_") === -1) ? "PASS" : "FAIL",
-              impact: ta.keybox_status === "revoked_on_google_crl"
-                ? "CRITICAL: Your `keybox.xml` certificate serial (`" + (ta.keybox_serials || "") + "`) is REVOKED on Google's live CRL (`android.googleapis.com/attestation/status`)! A revoked keybox with `spoofProvider=0` ALWAYS returns `[MEETS_BASIC_INTEGRITY]` only!"
-                : (ta.keybox_status === "aosp_software_keybox"
-                  ? "CRITICAL: Your `/data/adb/tricky_store/keybox.xml` is the default AOSP Software Attestation keybox (`Software Attestation Intermediate` / `f92009e853b6b045`). On Android 13+, an AOSP software keybox with `spoofProvider=0` ONLY passes `[MEETS_BASIC_INTEGRITY]`!"
-                  : "Valid unrevoked hardware ECDSA+RSA keybox is required in `/data/adb/tricky_store/keybox.xml` for `MEETS_STRONG_INTEGRITY`."),
-              remediation: "For `MEETS_STRONG_INTEGRITY`, replace `/data/adb/tricky_store/keybox.xml` with an unrevoked OEM hardware keybox. Or tap 'Fix for Me' on this card to enable `spoofProvider=1` + `spoofVendingSdk=1` so your device immediately passes `MEETS_DEVICE_INTEGRITY`!"
+              name: "Keybox.xml Dual-Key (ECDSA+RSA), NotAfter Expiry & CRL Audit",
+              observed: ta.keybox_status + " (" + (ta.keybox_algorithms || "") + ") | serials: [" + (ta.keybox_serials || "none") + "] | CRL/Expiry: " + (ta.keybox_crl_status || "not_checked"),
+              expected: "ecdsa:1,rsa:1 (both keys present), NotAfter >= today & clean_unrevoked",
+              status: (ta.keybox_status === "present_valid_structure" && (ta.keybox_algorithms || "").indexOf("rsa:0") === -1 && ta.keybox_crl_status !== "aosp_software_root" && ta.keybox_crl_status.indexOf("revoked_") === -1 && ta.keybox_crl_status.indexOf("expired_") === -1) ? "PASS" : "FAIL",
+              impact: (ta.keybox_algorithms || "").indexOf("rsa:0") !== -1
+                ? "CRITICAL: Your `keybox.xml` has `ecdsa:1,rsa:00` (5KB single-key RKP keybox with NO `<Key algorithm=\"rsa\">` block)! Per XDA Tricky Store Page 483 (#9,642 & #9,645), TrickyStore rejects single-key `ecdsa`-only keyboxes with `invalid XML: missing required data` until a companion `<Key algorithm=\"rsa\">` block is spliced in before `</Keybox>`!"
+                : "Valid unrevoked hardware ECDSA+RSA keybox is required in `/data/adb/tricky_store/keybox.xml` for `MEETS_STRONG_INTEGRITY`.",
+              remediation: "Tap 'Fix for Me' to automatically splice a valid 2048-bit `<Key algorithm=\"rsa\">` companion block into `/data/adb/tricky_store/keybox.xml` (turning `ecdsa:1,rsa:00` into `ecdsa:1,rsa:1` while preserving your unrevoked RKP ECDSA key valid until 2026-10-30!)."
             },
             {
               id: "tee_daemon",
-              name: "TEE Attestation Interceptor (TrickyStore / keystore2)",
-              observed: ta.tricky_store_daemon,
+              name: "TEE Attestation Interceptor, Version & Logcat Audit",
+              observed: (ta.tricky_store_daemon || "stopped") + (ta.pif_version || mc.pif_version ? " | PIF: " + (mc.pif_version || "") : "") + (ta.tricky_store_logcat ? " | log: " + ta.tricky_store_logcat : ""),
               expected: "running or injected_keystore2",
-              status: (ta.tricky_store_daemon === "running" || ta.tricky_store_daemon === "injected_keystore2" || ta.tricky_store_daemon === "module_enabled") ? "PASS" : "FAIL",
-              impact: "Intercepts `keystore2` Binder calls to sign the attestation certificate chain.",
-              remediation: "Verify TrickyStore or TEESimulator is enabled in APatch Manager."
+              status: (String(ta.tricky_store_daemon || "").indexOf("injected_keystore2") !== -1 || String(ta.tricky_store_daemon || "").indexOf("running") !== -1) ? "PASS" : "FAIL",
+              impact: "Intercepts `keystore2` Binder calls to sign the attestation certificate chain and reports live TrickyStore/PIF logcat lines.",
+              remediation: "Verify TrickyStore / TrickyStoreOSS is enabled in APatch Manager."
             },
             {
               id: "target_gms",
-              name: "target.txt GMS & Play Store Forced Generation Mode (!)",
+              name: "target.txt GMS, Play Store & Checker Apps Mode",
               observed: "gms=" + ta.target_gms + " (" + ta.target_mode + "), vending=" + ta.target_vending,
-              expected: "gms=present (generate_cert_exclamation !), vending=present",
-              status: (ta.target_gms === "present" && ta.target_vending === "present" && ta.target_mode === "generate_cert_exclamation")
-                ? "PASS"
-                : (ta.target_gms === "present" ? "WARN" : "FAIL"),
-              impact: "On Pixel Tensor devices (`akita` / Pixel 8a), StrongBox/Titan M2 can reject Leaf Hack (`?`/auto); appending `!` (`com.google.android.gms!`) forces full certificate generation from `keybox.xml`.",
-              remediation: "Tap 'Fix for Me' to set `com.google.android.gms!`, `com.android.vending!`, and `com.google.android.gsf!` in `/data/adb/tricky_store/target.txt`."
+              expected: "gms=present (auto leaf-hack or !), vending=present",
+              status: (ta.target_gms === "present" && ta.target_vending === "present") ? "PASS" : "FAIL",
+              impact: "Configures `com.google.android.gms`, `com.android.vending`, `com.google.android.gsf`, and `gr.nikolasspyr.integritycheck` in `/data/adb/tricky_store/target.txt`.",
+              remediation: "Tap 'Fix for Me' to populate `/data/adb/tricky_store/target.txt` with GMS, Play Store, Wallet, and Play Integrity API Checker."
             },
             {
               id: "keymint_hal",
@@ -1205,12 +1207,12 @@ jobs:
             },
             {
               id: "spl_alignment",
-              name: "System vs. Vendor & TrickyStore Security Patch Level (SPL)",
+              name: "TrickyStoreOSS key=value (all=2026-10-05) & PIF Security Patch Sync",
               observed: "pif=" + (mc.pif_security_patch || "n/a") + ", sys=" + d.build_props.sys_security_patch + ", override=" + ta.security_patch_override,
-              expected: "YYYYMMDD or all=YYYY-MM-DD in security_patch.txt",
-              status: (d.build_props.sys_security_patch === d.build_props.vendor_security_patch || ta.security_patch_override !== "none") ? "PASS" : "WARN",
-              impact: "Mismatched security patch dates between PIF and KeyMint extension cause Strong Integrity failure.",
-              remediation: "Tap 'Fix for Me' to synchronize `/data/adb/tricky_store/security_patch.txt` to `20260805`."
+              expected: "all=2026-10-05 in security_patch.txt matching PIF 2026-10-05",
+              status: (!ta.security_patch_override || String(ta.security_patch_override).indexOf("missing_key_value") !== -1 || String(ta.security_patch_override).indexOf("=") === -1 || (mc.pif_security_patch && mc.pif_security_patch.replace(/-/g, "") !== (ta.security_patch_override.match(/\d{4}-?\d{2}-?\d{2}/) || [""])[0].replace(/-/g, ""))) ? "FAIL" : "PASS",
+              impact: "CRITICAL: TrickyStoreOSS requires `key=value` syntax (`all=2026-10-05`) in `/data/adb/tricky_store/security_patch.txt`! A bare `20261005` without `all=` is ignored by TrickyStoreOSS, breaking SPL attestation!",
+              remediation: "Tap 'Fix for Me' to write `all=2026-10-05` (plus `system=`, `vendor=`, `boot=`) into `/data/adb/tricky_store/security_patch.txt`."
             }
           ]
         },
@@ -1426,7 +1428,7 @@ jobs:
           const fixForMeBtn = document.createElement("button");
           fixForMeBtn.type = "button";
           fixForMeBtn.className = "flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-md shadow-emerald-950/60 hover:bg-emerald-500 active:scale-[0.98] transition";
-          const btnLabel = item.id === "keybox_xml" ? "Fix for Me (Device Fallback)" : "Fix for Me";
+          const btnLabel = item.id === "keybox_xml" ? ((item.observed.indexOf("rsa:0") !== -1) ? "Fix for Me (Splice RSA Key)" : "Fix for Me (Device Fallback)") : "Fix for Me";
           fixForMeBtn.innerHTML = '<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg><span>' + btnLabel + '</span>';
           fixForMeBtn.addEventListener("click", function() {
             applyFixForMe(item.id, fixForMeBtn);
@@ -1717,7 +1719,7 @@ jobs:
     function buildMarkdownReport() {
       const layers = evaluateChecks(currentData);
       const lines = [
-        "# APatch Strong Integrity Diagnostic Report v1.4.0",
+        "# APatch Strong Integrity Diagnostic Report v1.6.3",
         "- **Device**: " + currentData.device.brand + " " + currentData.device.model + " (Android " + currentData.device.android_version + " / SDK " + currentData.device.sdk_int + ")",
         "- **Predicted Verdict**: `" + document.getElementById("verdictBadge").textContent + "`",
         "- **Readiness Score**: " + document.getElementById("scoreText").textContent,
@@ -1838,7 +1840,7 @@ verboseLogs=0`;
       });
 
       document.getElementById("fixFrankelPifBtn").addEventListener("click", function() {
-        openExportModal("Migrated Pre-RKP Pixel 9 Pro custom.pif.prop Config (SDK 34 <= 35)", PRE_RKP_PIF_PROP);
+        applyFixForMe("pif_device_fallback", document.getElementById("fixFrankelPifBtn"));
       });
 
       document.getElementById("exportJsonBtn").addEventListener("click", function() {

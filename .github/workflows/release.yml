@@ -24,6 +24,7 @@ jobs:
           sh -n action.sh
           sh -n scripts/diag_engine.sh
           sh -n scripts/apply_fix.sh
+          sh -n service.sh
 
       - name: Read Version from module.prop
         id: meta
@@ -37,7 +38,7 @@ jobs:
 
       - name: Package Flashable APatch Module ZIP
         run: |
-          chmod 0755 action.sh customize.sh scripts/diag_engine.sh scripts/apply_fix.sh
+          chmod 0755 action.sh customize.sh service.sh scripts/diag_engine.sh scripts/apply_fix.sh
           zip -r9 "${{ steps.meta.outputs.zip_name }}" \
             META-INF \
             scripts \
@@ -45,6 +46,7 @@ jobs:
             module.prop \
             customize.sh \
             action.sh \
+            service.sh \
             README.md \
             LICENSE
 

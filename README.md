@@ -1,65 +1,46 @@
-# APatch Strong Integrity Diagnostics (`apatch_strong_integrity_diag`)
+# APatch Strong Integrity Auditor & Auto-Fixer (v1.6.3)
 
-An open-source, 6-layer diagnostic and 1-tap auto-remediation module (`v1.4.0`) with a built-in WebUI for **APatch** (and KernelSU) that audits and fixes every requirement for passing Google Play Integrity's `MEETS_DEVICE_INTEGRITY` and `MEETS_STRONG_INTEGRITY` verdicts.
+[![Build & Release APatch Module](https://github.com/bponders12-cell/apatch-strong-integrity-diag/actions/workflows/release.yml/badge.svg)](https://github.com/bponders12-cell/apatch-strong-integrity-diag/actions/workflows/release.yml)
+[![Version](https://img.shields.io/badge/version-v1.6.3-emerald)](https://github.com/bponders12-cell/apatch-strong-integrity-diag/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-## Key Capabilities
+An advanced 6-layer diagnostic engine and automated remediation tool for **APatch** (and KernelSU / Magisk compatibility environments) to diagnose and achieve `MEETS_STRONG_INTEGRITY` on Android 10 through Android 17 (SDK 37).
 
-1. **Layer 1 — PIF Migration, Zygisk GMS Injection & RKP Audit**:
-   - Detects the critical APatch + ReZygisk/ZygiskNext trap where enabling `Exclude Modifications` (`exclude=1` in `/data/adb/ap/package_config`) on `com.google.android.gms` puts GMS on the DenyList and unloads PlayIntegrityFork.
-   - Audits `/data/adb/modules/playintegrityfix/custom.pif.prop` for PlayIntegrityFork v15+ `migrate.sh` formatting (`*.build.id`, `*.security_patch`, `*api_level`) and flags `DEVICE_INITIAL_SDK_INT >= 36` (Pixel 10/11 series) prints that require RKP.
-2. **Layer 2 — Pure-BusyBox ASN.1 DER Keybox & Live Google CRL Check**:
-   - Parses `/data/adb/tricky_store/keybox.xml` using pure BusyBox (`awk` + `base64 -d` + `od -An -tx1` — no `openssl` binary needed) to extract every X.509 certificate serial number.
-   - Checks all extracted serials against Google's live Attestation CRL (`https://android.googleapis.com/attestation/status`) and distinguishes between unrevoked hardware keyboxes (`clean_unrevoked`), revoked keyboxes (`revoked_serial_...`), and default AOSP software keyboxes (`aosp_software_keybox`).
-3. **Layer 3 — Verified Boot & Bootloader State**:
-   - Audits `ro.boot.verifiedbootstate`, `ro.boot.flash.locked`, `ro.boot.vbmeta.device_state`, `ro.boot.veritymode`, `ro.debuggable`, and `ro.secure`.
-4. **Layer 4 — Build Fingerprint & Security Patch Alignment**:
-   - Verifies alignment between PIF `SECURITY_PATCH`, `ro.build.version.security_patch`, `ro.vendor.build.security_patch`, and `/data/adb/tricky_store/security_patch.txt`.
-5. **Layer 5 — APatch & OverlayFS Footprint**:
-   - Scans `/data/adb/modules/*` for active `/system` `OverlayFS` mounts missing `skip_mount`.
-6. **Layer 6 — SELinux, Mount Namespace & Kernel Hygiene**:
-   - Checks `getenforce`, `/proc/mounts` leaks, `ro.boot.warranty_bit`, and banned kernel release substrings (`uname -r`).
+Repository: [https://github.com/bponders12-cell/apatch-strong-integrity-diag](https://github.com/bponders12-cell/apatch-strong-integrity-diag)
 
-## Repository Structure
+---
 
-```text
-apatch-strong-integrity-diag/
-├── .github/workflows/
-│   └── release.yml          # Automated CI syntax check + GitHub Release ZIP builder
-├── META-INF/com/google/android/
-│   ├── update-binary        # Standard APatch/Magisk module installer wrapper
-│   └── updater-script       # #MAGISK
-├── scripts/
-│   ├── diag_engine.sh       # Read-only 6-layer diagnostic & DER/CRL engine (--json / --text)
-│   └── apply_fix.sh         # Root auto-remediation engine (autopif4 -s -m, target.txt, resetprop)
-├── webroot/
-│   └── index.html           # Built-in APatch WebUI (window.ksu.exec bridge)
-├── action.sh                # APatch Manager Action button entry point
-├── build.sh                 # Local one-command syntax validator & ZIP builder
-├── customize.sh             # Installer hook (enables skip_mount & sets 0755 permissions)
-├── module.prop              # Module metadata
-├── update.json              # OTA update metadata for APatch Manager
-├── CHANGELOG.md             # Version history
-└── LICENSE                  # GPL-3.0 License
+## Key Capabilities in v1.6.3
+
+1. **Full Global `resetprop` Identity Sync**:
+   Directly updates `ro.product.*.device=bluejay`, `ro.product.*.name=bluejay_beta`, `ro.product.*.model="Pixel 6a"`, `ro.product.first_api_level=32`, `ro.board.first_api_level=32`, and `ro.build.version.security_patch=2026-10-05` in kernel memory (`/dev/__properties__`) to prevent split-brain identity mismatches between `ro.build.fingerprint` and host device properties on Android 17 QPR2/Canary.
+
+2. **Single-Key 5KB RKP `keybox.xml` Companion Splicer**:
+   Automatically splices a cryptographically chained 3-certificate RSA CA hierarchy (`Root CA -> Intermediate CA -> Attestation CA` with `BasicConstraints(ca=True)` and `keyCertSign=True`) right before `</Keybox>`, turning `ecdsa:1,rsa:0` into `ecdsa:1,rsa:1` so TrickyStore / TrickyStoreOSS can load single-key RKP keyboxes without `missing required data` errors.
+
+3. **TrickyStoreOSS `security_patch.txt` Formatting**:
+   Enforces `all=2026-10-05` (along with `system=`, `vendor=`, `boot=`) `key=value` syntax required by TrickyStoreOSS.
+
+4. **PlayIntegrityFork v18/v19 Schema (Commit `032a345` / `#617`)**:
+   Generates explicit `# System Properties` in `custom.pif.prop` (`ro.build.fingerprint`, `ro.build.id`, `ro.product.device`, `ro.product.name`, `ro.build.version.security_patch`, `ro.board.first_api_level=32`, and `ro.product.first_api_level=32`) alongside legacy wildcards for full backward/forward compatibility.
+
+5. **Accurate Keystore2 Injection & DroidGuard Cache Purge**:
+   Detects whether `keystore2` actually has TrickyStore/TEESimulator hooked (excluding `/memfd:` false positives), relaunches `service.sh` if needed, and clears `/data/data/com.google.android.gms/app_dg_cache/*` so pre-existing unlocked-bootloader keys are purged.
+
+---
+
+## Quick Installation
+
+1. Download `apatch_strong_integrity_diag_v1.6.3.zip` from the [Latest Release](https://github.com/bponders12-cell/apatch-strong-integrity-diag/releases/latest).
+2. Install via **APatch Manager → Modules → Install**.
+3. Open the **WebUI** in APatch Manager to view live diagnostics and tap **Fix All For Me**.
+
+---
+
+## Building from Source
+
+```bash
+sh build.sh
 ```
 
-## Quick Start: Push to Your Own GitHub Repository
-
-```sh
-unzip apatch_strong_integrity_diag_github_repo_v1.4.0.zip -d apatch-strong-integrity-diag
-cd apatch-strong-integrity-diag
-
-# Test local build
-sh ./build.sh
-
-# Initialize Git & push to GitHub (triggers GitHub Actions release on tag push)
-git init
-git add .
-git commit -m "Initial release: APatch Strong Integrity Diagnostics v1.4.0"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/apatch-strong-integrity-diag.git
-git push -u origin main
-
-# Tag v1.4.0 to automatically publish a GitHub Release with the flashable ZIP
-git tag v1.4.0
-git push origin v1.4.0
-```
+Produces `apatch_strong_integrity_diag_v1.6.3.zip` with correct executable permissions (`0755`) and metadata.

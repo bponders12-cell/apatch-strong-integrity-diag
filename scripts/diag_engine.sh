@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# APatch Strong Integrity Diagnostic Engine v1.4.0 (Read-Only Auditor)
+# APatch Strong Integrity Diagnostic Engine v1.6.3 (Read-Only Auditor)
 
 MODDIR=${0%/*}/..
 MODE="text"
@@ -36,8 +36,12 @@ parse_pif_val() {
 }
 
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "unknown")
+TODAY_YMD=$(date -u +"%Y%m%d" 2>/dev/null || echo "20261028")
 DEVICE_MODEL=$(get_prop ro.product.model)
 DEVICE_BRAND=$(get_prop ro.product.brand)
+HOST_DEVICE=$(get_prop ro.product.device)
+HOST_FIRST_API=$(get_prop ro.product.first_api_level)
+HOST_BOARD_API=$(get_prop ro.board.first_api_level)
 ANDROID_VER=$(get_prop ro.build.version.release)
 SDK_INT=$(get_prop ro.build.version.sdk)
 KERNEL_REL=$(uname -r 2>/dev/null)
@@ -51,10 +55,18 @@ APATCH_BB="missing"
 [ -x /data/adb/ap/bin/busybox ] && APATCH_BB="present"
 
 ZYGISK_PROVIDER="none"
+Z_COUNT=0
 for zmod in rezygisk zygisksu neozygisk; do
-  if [ -d "/data/adb/modules/$zmod" ] && [ ! -f "/data/adb/modules/$zmod/disable" ]; then
-    ZYGISK_PROVIDER="$zmod"
-    break
+  if [ -d "/data/adb/modules/$zmod" ] && [ ! -f "/data/adb/modules/$zmod/disable" ] && [ ! -f "/data/adb/modules/$zmod/remove" ]; then
+    zver=$(grep '^version=' "/data/adb/modules/$zmod/module.prop" 2>/dev/null | cut -d= -f2 | tr -d '\r\n')
+    zlabel="$zmod"
+    [ -n "$zver" ] && zlabel="${zmod}(${zver})"
+    if [ "$ZYGISK_PROVIDER" = "none" ]; then
+      ZYGISK_PROVIDER="$zlabel"
+    else
+      ZYGISK_PROVIDER="${ZYGISK_PROVIDER}+${zlabel}_COLLISION"
+    fi
+    Z_COUNT=$((Z_COUNT + 1))
   fi
 done
 
@@ -112,6 +124,13 @@ BOOT_SPL=$(get_prop ro.bootimage.build.security_patch)
 
 # 4. PlayIntegrityFix / PlayIntegrityFork (.prop & .json) Deep Inspection
 PIF_INSTALLED="false"
+PIF_VERSION="none"
+if [ -f /data/adb/modules/playintegrityfix/module.prop ]; then
+  PIF_NAME=$(grep '^name=' /data/adb/modules/playintegrityfix/module.prop 2>/dev/null | cut -d= -f2 | tr -d '\r\n')
+  PIF_VER=$(grep '^version=' /data/adb/modules/playintegrityfix/module.prop 2>/dev/null | cut -d= -f2 | tr -d '\r\n')
+  PIF_VERSION="${PIF_NAME} ${PIF_VER}"
+fi
+
 PIF_PATH=""
 for ppath in \
   /data/adb/modules/playintegrityfix/custom.pif.prop \
@@ -135,6 +154,7 @@ PIF_INITIAL_SDK=""
 PIF_SPOOF_PROVIDER="not_set"
 PIF_SPOOF_PROPS="not_set"
 PIF_SPOOF_VENDING_SDK="not_set"
+PIF_SPOOF_VENDING_FINGER="0"
 PIF_RKP_CONFLICT="none"
 
 if [ -n "$PIF_PATH" ] && [ -f "$PIF_PATH" ]; then
@@ -145,12 +165,11 @@ if [ -n "$PIF_PATH" ] && [ -f "$PIF_PATH" ]; then
   PIF_MODEL=$(parse_pif_val "MODEL" "$PIF_PATH")
   [ -z "$PIF_MODEL" ] && PIF_MODEL=$(parse_pif_val "ro.product.model" "$PIF_PATH")
   PIF_SPL=$(parse_pif_val "SECURITY_PATCH" "$PIF_PATH")
-  [ -z "$PIF_SPL" ] && PIF_SPL=$(parse_pif_val "\*\.security_patch" "$PIF_PATH")
   [ -z "$PIF_SPL" ] && PIF_SPL=$(parse_pif_val "ro.build.version.security_patch" "$PIF_PATH")
-  PIF_INITIAL_SDK=$(parse_pif_val "\*api_level" "$PIF_PATH")
-  [ -z "$PIF_INITIAL_SDK" ] && PIF_INITIAL_SDK=$(parse_pif_val "ro.product.first_api_level" "$PIF_PATH")
+  [ -z "$PIF_SPL" ] && PIF_SPL=$(parse_pif_val "\*\.security_patch" "$PIF_PATH")
+  PIF_INITIAL_SDK=$(parse_pif_val "ro.product.first_api_level" "$PIF_PATH")
+  [ -z "$PIF_INITIAL_SDK" ] && PIF_INITIAL_SDK=$(parse_pif_val "\*api_level" "$PIF_PATH")
   [ -z "$PIF_INITIAL_SDK" ] && PIF_INITIAL_SDK=$(parse_pif_val "DEVICE_INITIAL_SDK_INT" "$PIF_PATH")
-  [ -z "$PIF_INITIAL_SDK" ] && PIF_INITIAL_SDK=$(parse_pif_val "FIRST_API_LEVEL" "$PIF_PATH")
 
   raw_sp=$(parse_pif_val "spoofProvider" "$PIF_PATH")
   case "$raw_sp" in
@@ -167,31 +186,34 @@ if [ -n "$PIF_PATH" ] && [ -f "$PIF_PATH" ]; then
   raw_vs=$(parse_pif_val "spoofVendingSdk" "$PIF_PATH")
   [ -n "$raw_vs" ] && PIF_SPOOF_VENDING_SDK="$raw_vs"
 
-  # Accept both PlayIntegrityFork's migrate.sh schema (*.build.id / *.security_patch / *api_level) and ro.build.fingerprint
+  raw_vf=$(parse_pif_val "spoofVendingFinger" "$PIF_PATH")
+  [ -n "$raw_vf" ] && PIF_SPOOF_VENDING_FINGER="$raw_vf"
+
+  # 4A. Check PlayIntegrityFork v18/v19 (commit 032a345 / #617) explicit System Properties requirement!
   case "$PIF_PATH" in
     *custom.pif.prop)
-      if ! grep -Eq "^(\*\.build\.id=|\*api_level=|ro\.build\.fingerprint=|ro\.product\.first_api_level=)" "$PIF_PATH" 2>/dev/null; then
-        PIF_RKP_CONFLICT="unmigrated_custom_pif_prop"
+      if ! grep -Eq "^ro\.product\.first_api_level=" "$PIF_PATH" 2>/dev/null || ! grep -Eq "^ro\.board\.first_api_level=" "$PIF_PATH" 2>/dev/null; then
+        PIF_RKP_CONFLICT="missing_v19_explicit_sys_props (missing ro.board.first_api_level / ro.product.first_api_level)"
       fi
       ;;
   esac
 
-  # Detect if static placeholder print BP31.260821.009 is still active instead of a live Canary print from autopif4.sh
-  if echo "$PIF_FINGERPRINT" | grep -q "BP31\.260821\.009/15829104"; then
-    PIF_RKP_CONFLICT="static_print_needs_live_autopif4 (tap Fix for Me)"
+  # 4B. Detect expired Canary builds (>6 weeks old)
+  if echo "$PIF_FINGERPRINT" | grep -Eq "ZP11\.260[1-8]|BP31\.260821\.009"; then
+    PIF_RKP_CONFLICT="expired_canary_print (${PIF_FINGERPRINT##*/})"
   fi
 
-  case "$PIF_DEVICE" in
-    frankel|blazer|mustang|rango|stallion|cubs|grizzly|kodiak|yogi)
-      PIF_RKP_CONFLICT="pixel10_11_rkp_mandate (${PIF_DEVICE})"
-      ;;
-  esac
-  if [ -n "$PIF_INITIAL_SDK" ] && [ "$PIF_INITIAL_SDK" -ge 36 ] 2>/dev/null; then
-    [ "$PIF_RKP_CONFLICT" = "none" ] && PIF_RKP_CONFLICT="sdk_${PIF_INITIAL_SDK}_rkp_mandate"
+  # 4C. Detect if host ro.product.device or ro.board.first_api_level mismatches PIF_DEVICE (split-brain identity!)
+  if echo "$BUILD_FP" | grep -Eq ":(16|17)/[BC]P[1-4]1\.260[1-9]"; then
+    PIF_RKP_CONFLICT="host_ro_build_fingerprint_still_expired_CP41"
+  elif [ -n "$PIF_DEVICE" ] && [ "$HOST_DEVICE" != "$PIF_DEVICE" ]; then
+    PIF_RKP_CONFLICT="split_brain_identity (host ro.product.device=${HOST_DEVICE} != pif=${PIF_DEVICE}; tap Fix for Me)"
+  elif [ -n "$HOST_BOARD_API" ] && [ "$HOST_BOARD_API" -gt 32 ] 2>/dev/null; then
+    PIF_RKP_CONFLICT="board_first_api_level_gt_32 (ro.board.first_api_level=${HOST_BOARD_API} > 32; tap Fix for Me)"
   fi
 fi
 
-# 5. Hardware KeyMint / TEE Stack & Pure-BusyBox ASN.1 DER Keybox / Google CRL Audit
+# 5. Hardware KeyMint / TEE Stack & Pure-BusyBox ASN.1 DER Keybox Audit
 KEYMINT_SVC=$(getprop 2>/dev/null | grep -E "init\.svc\..*(keymint|keymaster)" | tr '\n' ';' | sed 's/;$//')
 STRONGBOX_SVC=$(getprop 2>/dev/null | grep -E "init\.svc\..*strongbox" | tr '\n' ';' | sed 's/;$//')
 
@@ -199,19 +221,37 @@ TS_DIR="/data/adb/tricky_store"
 [ ! -d "$TS_DIR" ] && [ -d "/data/adb/teesim" ] && TS_DIR="/data/adb/teesim"
 
 TS_INSTALLED="false"
+TS_VERSION="none"
 if [ -d "/data/adb/tricky_store" ] || [ -d "/data/adb/modules/tricky_store" ] || [ -d "/data/adb/teesim" ] || [ -d "/data/adb/modules/teesimulator" ]; then
   TS_INSTALLED="true"
+  for tsmp in /data/adb/modules/tricky_store/module.prop /data/adb/modules/teesimulator/module.prop; do
+    if [ -f "$tsmp" ]; then
+      tsn=$(grep '^name=' "$tsmp" 2>/dev/null | cut -d= -f2 | tr -d '\r\n')
+      tsv=$(grep '^version=' "$tsmp" 2>/dev/null | cut -d= -f2 | tr -d '\r\n')
+      TS_VERSION="${tsn} ${tsv}"
+      break
+    fi
+  done
 fi
 
+TEE_BROKEN_STATUS="unknown"
+if [ -f "/data/adb/tricky_store/tee_status" ]; then
+  TEE_BROKEN_STATUS=$(tr '\n' ' ' < /data/adb/tricky_store/tee_status 2>/dev/null | sed 's/ $//')
+fi
+
+# Accurately check if keystore2 has TrickyStore/TEESimulator injected (WITHOUT matching /memfd:jit-cache false positives!)
 TS_DAEMON="stopped"
 KS2_PID=$(pidof keystore2 2>/dev/null | awk '{print $1}')
-if pidof tricky_store >/dev/null 2>&1 || ps -A 2>/dev/null | grep -Eq "[t]ricky_store|[t]eesim|[o]mk|tricky_store"; then
-  TS_DAEMON="running"
-elif [ -n "$KS2_PID" ] && grep -Eiq "tricky|teesim|lsplt|memfd" "/proc/$KS2_PID/maps" 2>/dev/null; then
-  TS_DAEMON="injected_keystore2"
+if [ -n "$KS2_PID" ] && grep -Eiq "tricky|teesim|lsplt" "/proc/$KS2_PID/maps" 2>/dev/null; then
+  TS_DAEMON="injected_keystore2 (${TS_VERSION}, ${TEE_BROKEN_STATUS})"
+elif pidof tricky_store >/dev/null 2>&1 || ps -ef 2>/dev/null | grep -Eiq "[t]ricky_store|[t]eesim|tricky_store/service"; then
+  TS_DAEMON="running_daemon_only (${TS_VERSION}, ${TEE_BROKEN_STATUS})"
 elif [ -d "/data/adb/modules/tricky_store" ] && [ ! -f "/data/adb/modules/tricky_store/disable" ]; then
-  TS_DAEMON="module_enabled"
+  TS_DAEMON="not_injected_in_keystore2 (${TS_VERSION}, ${TEE_BROKEN_STATUS})"
 fi
+
+TS_LOGCAT=$(logcat -d -t 500 2>/dev/null | grep -Ei "TrickyStore|KeyBox|CertHack|PIF|PlayIntegrityFork" | tail -n 4 | tr '\n' ' | ' | sed 's/ | $//')
+[ -z "$TS_LOGCAT" ] && TS_LOGCAT="no_recent_log_entries"
 
 KEYBOX_FILE=""
 for kbpath in /data/adb/tricky_store/keybox.xml /data/adb/teesim/keybox.xml /data/misc/keystore/omk/keybox.xml; do
@@ -227,20 +267,24 @@ KEYBOX_ALGOS=""
 KEYBOX_SERIALS=""
 KEYBOX_CRL_STATUS="not_checked"
 KEYBOX_SHA256="none"
+MIN_CERT_EXPIRY_YMD="99991231"
+MIN_CERT_EXPIRY_FMT="unknown"
 
 if [ -n "$KEYBOX_FILE" ] && [ -f "$KEYBOX_FILE" ]; then
   if [ -s "$KEYBOX_FILE" ]; then
     KEYBOX_SHA256=$(sha256sum "$KEYBOX_FILE" 2>/dev/null | cut -c1-12)
-    KEYBOX_CERTS=$(grep -c "<Certificate" "$KEYBOX_FILE" 2>/dev/null || echo 0)
-    HAS_ECDSA=$(grep -ic "ecdsa" "$KEYBOX_FILE" 2>/dev/null || echo 0)
-    HAS_RSA=$(grep -ic "rsa" "$KEYBOX_FILE" 2>/dev/null || echo 0)
+    KEYBOX_CERTS=$(grep -ic "<Certificate[[:space:]>]" "$KEYBOX_FILE" 2>/dev/null | head -n 1 | tr -cd '0-9')
+    [ -z "$KEYBOX_CERTS" ] && KEYBOX_CERTS=0
+    HAS_ECDSA=$(grep -ic "<Key[^>]*ecdsa" "$KEYBOX_FILE" 2>/dev/null | head -n 1 | tr -cd '0-9')
+    [ -z "$HAS_ECDSA" ] && HAS_ECDSA=0
+    HAS_RSA=$(grep -ic "<Key[^>]*rsa" "$KEYBOX_FILE" 2>/dev/null | head -n 1 | tr -cd '0-9')
+    [ -z "$HAS_RSA" ] && HAS_RSA=0
     KEYBOX_ALGOS="ecdsa:${HAS_ECDSA},rsa:${HAS_RSA}"
 
-    # Pure-BusyBox Individual Certificate Splitter & ASN.1 DER Serial/Subject Parser
     TMP_CERT_DIR="/data/local/tmp/apatch_kb_certs_$$"
     mkdir -p "$TMP_CERT_DIR" 2>/dev/null
     awk '
-      /<Certificate/ { in_cert=1; idx++; file=sprintf("'"$TMP_CERT_DIR"'/c_%d.b64", idx) }
+      /<Certificate[ \t>]/ { in_cert=1; idx++; file=sprintf("'"$TMP_CERT_DIR"'/c_%d.b64", idx) }
       in_cert {
         line=$0
         gsub(/<[^>]*>/, "", line)
@@ -255,12 +299,43 @@ if [ -n "$KEYBOX_FILE" ] && [ -f "$KEYBOX_FILE" ]; then
     ' "$KEYBOX_FILE" 2>/dev/null
 
     IS_AOSP_SW="false"
+    HAS_UNCHAINED_RSA="false"
+    if grep -qi "OEM Hardware RSA Leaf" "$KEYBOX_FILE" 2>/dev/null; then
+      HAS_UNCHAINED_RSA="true"
+    fi
+
     for bfile in "$TMP_CERT_DIR"/c_*.b64; do
       [ -f "$bfile" ] || continue
       asc=$(base64 -d < "$bfile" 2>/dev/null | tr -cd '\11\12\15\40-\176')
       if echo "$asc" | grep -Eiq "Software Attestation|Android Keystore Software|aosp-test|Google Software Attestation"; then
         IS_AOSP_SW="true"
       fi
+
+      exp_info=$(printf '%s' "$asc" | grep -Eo '[0-9]{12,14}Z' 2>/dev/null | awk '
+        NR == 2 {
+          s = $0
+          sub(/Z$/, "", s)
+          if (length(s) == 12) {
+            yy = substr(s, 1, 2)
+            mm = substr(s, 3, 2)
+            dd = substr(s, 5, 2)
+            yyyy = (yy + 0 < 50) ? ("20" yy) : ("19" yy)
+          } else {
+            yyyy = substr(s, 1, 4)
+            mm = substr(s, 5, 2)
+            dd = substr(s, 7, 2)
+          }
+          printf "%s%s%s|%s-%s-%s", yyyy, mm, dd, yyyy, mm, dd
+        }')
+      if [ -n "$exp_info" ]; then
+        exp_ymd=$(echo "$exp_info" | cut -d'|' -f1)
+        exp_fmt=$(echo "$exp_info" | cut -d'|' -f2)
+        if [ -n "$exp_ymd" ] && [ "$exp_ymd" -lt "$MIN_CERT_EXPIRY_YMD" ] 2>/dev/null; then
+          MIN_CERT_EXPIRY_YMD="$exp_ymd"
+          MIN_CERT_EXPIRY_FMT="$exp_fmt"
+        fi
+      fi
+
       hex=$(base64 -d < "$bfile" 2>/dev/null | od -An -tx1 | tr -d ' \t\r\n')
       ser=$(printf '%s' "$hex" | awk '
       {
@@ -277,9 +352,14 @@ if [ -n "$KEYBOX_FILE" ] && [ -f "$KEYBOX_FILE" ]; then
         }
       }')
       if [ -n "$ser" ]; then
-        case ",$KEYBOX_SERIALS," in
-          *,"$ser",*) ;;
-          *) KEYBOX_SERIALS="${KEYBOX_SERIALS}${ser}," ;;
+        case "$ser" in
+          7f000101|7f000102|7f000103) ;;
+          *)
+            case ",$KEYBOX_SERIALS," in
+              *,"$ser",*) ;;
+              *) KEYBOX_SERIALS="${KEYBOX_SERIALS}${ser}," ;;
+            esac
+            ;;
         esac
       fi
     done
@@ -289,13 +369,21 @@ if [ -n "$KEYBOX_FILE" ] && [ -f "$KEYBOX_FILE" ]; then
     if [ "$IS_AOSP_SW" = "true" ] || grep -Eiq "aosp-test|Software Attestation|MIIEpAIBAAKCAQEA3" "$KEYBOX_FILE" 2>/dev/null; then
       KEYBOX_STATUS="aosp_software_keybox"
       KEYBOX_CRL_STATUS="aosp_software_root"
-    elif [ "$KEYBOX_CERTS" -ge 3 ] && [ "$HAS_ECDSA" -ge 1 ]; then
+    elif [ "$HAS_UNCHAINED_RSA" = "true" ]; then
+      KEYBOX_STATUS="unchained_rsa_companion_needs_v162_resplice"
+      KEYBOX_CRL_STATUS="tap_fix_for_me_to_resplice_chained_rsa_ca (valid_until_${MIN_CERT_EXPIRY_FMT})"
+    elif [ "$MIN_CERT_EXPIRY_YMD" != "99991231" ] && [ "$MIN_CERT_EXPIRY_YMD" -lt "$TODAY_YMD" ] 2>/dev/null; then
+      KEYBOX_STATUS="expired_rkp_certificate (expired ${MIN_CERT_EXPIRY_FMT})"
+      KEYBOX_CRL_STATUS="expired_not_after_${MIN_CERT_EXPIRY_FMT}"
+    elif [ "$KEYBOX_CERTS" -ge 3 ] && [ "$HAS_ECDSA" -ge 1 ] && [ "$HAS_RSA" -eq 0 ] 2>/dev/null; then
+      KEYBOX_STATUS="rkp_ecdsa_only_missing_rsa_key"
+      KEYBOX_CRL_STATUS="clean_unrevoked_needs_rsa_splice (valid_until_${MIN_CERT_EXPIRY_FMT})"
+    elif [ "$KEYBOX_CERTS" -ge 3 ] && [ "$HAS_ECDSA" -ge 1 ] && [ "$HAS_RSA" -ge 1 ] 2>/dev/null; then
       KEYBOX_STATUS="present_valid_structure"
     else
       KEYBOX_STATUS="present_incomplete_chain"
     fi
 
-    # Check extracted serial numbers against Google's live CRL (https://android.googleapis.com/attestation/status)
     if [ -n "$KEYBOX_SERIALS" ] && [ "$KEYBOX_STATUS" = "present_valid_structure" ]; then
       CRL_CACHE="/data/local/tmp/apatch_google_crl.json"
       if [ ! -s "$CRL_CACHE" ]; then
@@ -308,7 +396,11 @@ if [ -n "$KEYBOX_FILE" ] && [ -f "$KEYBOX_FILE" ]; then
         fi
       fi
       if [ -s "$CRL_CACHE" ]; then
-        KEYBOX_CRL_STATUS="clean_unrevoked"
+        if [ "$MIN_CERT_EXPIRY_FMT" != "unknown" ]; then
+          KEYBOX_CRL_STATUS="clean_unrevoked (valid_until_${MIN_CERT_EXPIRY_FMT})"
+        else
+          KEYBOX_CRL_STATUS="clean_unrevoked"
+        fi
         OLD_IFS="$IFS"
         IFS=","
         for s in $KEYBOX_SERIALS; do
@@ -324,7 +416,7 @@ if [ -n "$KEYBOX_FILE" ] && [ -f "$KEYBOX_FILE" ]; then
         done
         IFS="$OLD_IFS"
       else
-        KEYBOX_CRL_STATUS="crl_unreachable"
+        KEYBOX_CRL_STATUS="crl_unreachable (valid_until_${MIN_CERT_EXPIRY_FMT})"
       fi
     fi
   else
@@ -361,6 +453,17 @@ TS_SPL_OVERRIDE="none"
 if [ -f "$TS_DIR/security_patch.txt" ]; then
   TS_SPL_OVERRIDE=$(grep -v '^#' "$TS_DIR/security_patch.txt" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
   [ -z "$TS_SPL_OVERRIDE" ] && TS_SPL_OVERRIDE="empty_file"
+fi
+
+SPL_MISMATCH="false"
+PIF_SPL_DIGITS=$(echo "$PIF_SPL" | tr -cd '0-9')
+TS_SPL_DIGITS=$(echo "$TS_SPL_OVERRIDE" | grep -Eo '[0-9]{4}-?[0-9]{2}-?[0-9]{2}' | head -n 1 | tr -cd '0-9')
+if [ -n "$PIF_SPL_DIGITS" ] && [ -n "$TS_SPL_DIGITS" ] && [ "$PIF_SPL_DIGITS" != "$TS_SPL_DIGITS" ]; then
+  SPL_MISMATCH="true"
+fi
+if echo "$TS_VERSION" | grep -Eiq "OSS" && ! echo "$TS_SPL_OVERRIDE" | grep -Eq "(all|system)="; then
+  SPL_MISMATCH="true"
+  TS_SPL_OVERRIDE="${TS_SPL_OVERRIDE}_missing_key_value_for_TS_OSS"
 fi
 
 # 6. SELinux, Mount Leaks & Kernel Hygiene
@@ -400,11 +503,23 @@ if [ "$KEYBOX_STATUS" != "present_valid_structure" ]; then
 fi
 
 if [ "$PIF_RKP_CONFLICT" != "none" ]; then
+  SCORE=$((SCORE - 30))
+  CRITICAL_COUNT=$((CRITICAL_COUNT + 1))
+fi
+
+if [ "$SPL_MISMATCH" = "true" ]; then
   SCORE=$((SCORE - 25))
   CRITICAL_COUNT=$((CRITICAL_COUNT + 1))
 fi
 
-if [ "$TS_DAEMON" = "stopped" ] || [ "$TS_TARGET_GMS" != "present" ]; then
+case "$TS_DAEMON" in
+  stopped*|not_injected*)
+    SCORE=$((SCORE - 25))
+    CRITICAL_COUNT=$((CRITICAL_COUNT + 1))
+    ;;
+esac
+
+if [ "$TS_TARGET_GMS" != "present" ]; then
   SCORE=$((SCORE - 15))
   CRITICAL_COUNT=$((CRITICAL_COUNT + 1))
 fi
@@ -430,10 +545,8 @@ PREDICTED_VERDICT="MEETS_STRONG_INTEGRITY"
 if [ "$CRITICAL_COUNT" -gt 0 ]; then
   if [ "$SELINUX_STATE" != "Enforcing" ] || [ "$BUILD_TAGS" != "release-keys" ]; then
     PREDICTED_VERDICT="FAILS_BASIC_INTEGRITY"
-  elif [ "$GMS_EXCLUDED" = "denylist_blocks_zygisk_pif" ] || [ "$PIF_RKP_CONFLICT" != "none" ] || [ "$KEYBOX_STATUS" = "revoked_on_google_crl" ] || ( [ "$KEYBOX_STATUS" = "aosp_software_keybox" ] && [ "$PIF_SPOOF_PROVIDER" != "true" ] ); then
+  elif [ "$GMS_EXCLUDED" = "denylist_blocks_zygisk_pif" ] || [ "$PIF_RKP_CONFLICT" != "none" ] || [ "$SPL_MISMATCH" = "true" ] || [ "$KEYBOX_STATUS" != "present_valid_structure" ]; then
     PREDICTED_VERDICT="CAPS_AT_BASIC_INTEGRITY"
-  elif [ "$KEYBOX_STATUS" = "aosp_software_keybox" ] || [ "$PIF_SPOOF_PROVIDER" = "true" ] || [ "$KEYBOX_STATUS" = "missing" ]; then
-    PREDICTED_VERDICT="CAPS_AT_DEVICE_INTEGRITY"
   else
     PREDICTED_VERDICT="FAILS_STRONG_INTEGRITY"
   fi
@@ -446,6 +559,9 @@ if [ "$MODE" = "json" ]; then
   "device": {
     "model": "$(json_escape "$DEVICE_MODEL")",
     "brand": "$(json_escape "$DEVICE_BRAND")",
+    "host_device": "$(json_escape "$HOST_DEVICE")",
+    "host_first_api_level": "$(json_escape "$HOST_FIRST_API")",
+    "host_board_api_level": "$(json_escape "$HOST_BOARD_API")",
     "android_version": "$(json_escape "$ANDROID_VER")",
     "sdk_int": "$(json_escape "$SDK_INT")",
     "kernel": "$(json_escape "$KERNEL_REL")"
@@ -485,7 +601,10 @@ if [ "$MODE" = "json" ]; then
     "keymint_services": "$(json_escape "$KEYMINT_SVC")",
     "strongbox_services": "$(json_escape "$STRONGBOX_SVC")",
     "tricky_store_installed": $TS_INSTALLED,
+    "tricky_store_version": "$(json_escape "$TS_VERSION")",
+    "tee_broken_status": "$(json_escape "$TEE_BROKEN_STATUS")",
     "tricky_store_daemon": "$(json_escape "$TS_DAEMON")",
+    "tricky_store_logcat": "$(json_escape "$TS_LOGCAT")",
     "keybox_status": "$(json_escape "$KEYBOX_STATUS")",
     "keybox_cert_count": $KEYBOX_CERTS,
     "keybox_algorithms": "$(json_escape "$KEYBOX_ALGOS")",
@@ -500,6 +619,7 @@ if [ "$MODE" = "json" ]; then
   "module_conflicts": {
     "zygisk_provider": "$(json_escape "$ZYGISK_PROVIDER")",
     "pif_installed": $PIF_INSTALLED,
+    "pif_version": "$(json_escape "$PIF_VERSION")",
     "pif_path": "$(json_escape "$PIF_PATH")",
     "pif_fingerprint": "$(json_escape "$PIF_FINGERPRINT")",
     "pif_device": "$(json_escape "$PIF_DEVICE")",
@@ -509,7 +629,8 @@ if [ "$MODE" = "json" ]; then
     "pif_rkp_conflict": "$(json_escape "$PIF_RKP_CONFLICT")",
     "pif_spoof_provider": "$(json_escape "$PIF_SPOOF_PROVIDER")",
     "pif_spoof_props": "$(json_escape "$PIF_SPOOF_PROPS")",
-    "pif_spoof_vending_sdk": "$(json_escape "$PIF_SPOOF_VENDING_SDK")"
+    "pif_spoof_vending_sdk": "$(json_escape "$PIF_SPOOF_VENDING_SDK")",
+    "pif_spoof_vending_finger": "$(json_escape "$PIF_SPOOF_VENDING_FINGER")"
   },
   "mount_selinux": {
     "selinux": "$(json_escape "$SELINUX_STATE")",
@@ -522,7 +643,7 @@ if [ "$MODE" = "json" ]; then
 JSON_EOF
 else
   echo "========================================================"
-  echo "  APatch Strong Integrity Diagnostic Report v1.4.0      "
+  echo "  APatch Strong Integrity Diagnostic Report v1.6.3      "
   echo "  Timestamp: $TIMESTAMP"
   echo "  Device: $DEVICE_BRAND $DEVICE_MODEL (Android $ANDROID_VER / SDK $SDK_INT)"
   echo "========================================================"
